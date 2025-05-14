@@ -65,4 +65,12 @@ dependencies {
 
     // OkHttp WebSocket
     implementation("com.squareup.okhttp3:okhttp:4.10.0")
+
+    //Auth
+    implementation("com.squareup.retrofit2:retrofit:2.9.0")
+    implementation("com.squareup.retrofit2:converter-gson:2.9.0")
+    implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.6.2")
+
+    //Navigation
+    implementation("androidx.navigation:navigation-compose:2.7.6")
 }
