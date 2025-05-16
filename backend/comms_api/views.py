@@ -1,8 +1,10 @@
+from livekit.api import AccessToken, VideoGrants
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
+from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.db.models import Q
@@ -40,7 +42,7 @@ class RefreshTokenView(APIView):
 
         if not refresh:
             return Response({"error": "Brak refresh tokena"}, status=status.HTTP_400_BAD_REQUEST)
-        
+
         try:
             token = RefreshToken(refresh)
             return Response({
@@ -49,7 +51,7 @@ class RefreshTokenView(APIView):
             })
         except TokenError as e:
             return Response({"error": "Token nieważny lub wygasł", "details": str(e)}, status=status.HTTP_401_UNAUTHORIZED)
-        
+
 
 class ChatHistoryView(APIView):
     permission_classes = [IsAuthenticated]
@@ -70,3 +72,28 @@ class ChatHistoryView(APIView):
 
         serialized = MessageSerializer(messages, many=True)
         return Response(serialized.data)
+
+
+@api_view(['GET'])
+@permission_classes([IsAuthenticated])
+def livekit_token_view(request):
+    user = request.user
+    room_name = request.query_params.get('room', '*')  # np. room=chat_123
+
+    api_key = "devkey"
+    api_secret = "secret"
+
+    token = AccessToken(api_key, api_secret) \
+        .with_identity(f"{user.id}") \
+        .with_name(user.username) \
+        .with_grants(VideoGrants(
+            room_join=True,
+            room=room_name,
+            can_publish=True,
+            can_publish_data=True,
+            can_subscribe=True,
+            #can_publish_sources=["camera", "microphone"]
+        )).to_jwt()
+    print(token)
+    return Response({"token": token})
+

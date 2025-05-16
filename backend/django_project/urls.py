@@ -16,7 +16,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from comms_api.views import RegisterView, LoginView, RefreshTokenView, ChatHistoryView
+from comms_api.views import RegisterView, LoginView, RefreshTokenView, ChatHistoryView, livekit_token_view
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -24,4 +24,5 @@ urlpatterns = [
     path('api/login/', LoginView.as_view()),
     path("api/token/refresh/", RefreshTokenView.as_view()),
     path("api/chat/history/", ChatHistoryView.as_view()),
+    path('api/livekit-token/', livekit_token_view),
 ]

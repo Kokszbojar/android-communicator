@@ -13,8 +13,13 @@ fun RegisterScreen(viewModel: AuthViewModel, onRegisterSuccess: () -> Unit, onNa
     var username by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
     var error by remember { mutableStateOf<String?>(null) }
+    val insets = WindowInsets.systemBars.asPaddingValues()
 
-    Column(modifier = Modifier.padding(16.dp)) {
+    Column(modifier = Modifier
+        .fillMaxSize()
+        .padding(insets)
+        .padding(start=20.dp, end=20.dp)
+    ) {
         TextField(value = username, onValueChange = { username = it }, label = { Text("Login") })
         Spacer(Modifier.height(8.dp))
         TextField(value = password, onValueChange = { password = it }, label = { Text("Hasło") }, visualTransformation = PasswordVisualTransformation())

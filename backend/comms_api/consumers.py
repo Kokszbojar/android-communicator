@@ -28,6 +28,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         if action == "send_message":
             await self.handle_send_message(data)
+        elif action == "webrtc_offer":
+            await self.handle_webrtc_offer(data)
+        elif action == "webrtc_answer":
+            await self.handle_webrtc_answer(data)
+        elif action == "webrtc_ice_candidate":
+            await self.handle_webrtc_ice_candidate(data)
         elif action == "call_user":
             await self.handle_call_user(data)
         elif action == "answer_call":
@@ -53,6 +59,51 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "from": from_user.id,
                     "content": content,
                     "timestamp": str(message.timestamp),
+                },
+            }
+        )
+
+    async def handle_webrtc_offer(self, data):
+        to_user_id = data["to"]
+        sdp = data["sdp"]
+
+        await self.channel_layer.group_send(
+            f"user_{to_user_id}",
+            {
+                "type": "webrtc.offer",
+                "offer": {
+                    "from": self.user.id,
+                    "sdp": sdp,
+                },
+            }
+        )
+
+    async def handle_webrtc_answer(self, data):
+        to_user_id = data["to"]
+        sdp = data["sdp"]
+
+        await self.channel_layer.group_send(
+            f"user_{to_user_id}",
+            {
+                "type": "webrtc.answer",
+                "answer": {
+                    "from": self.user.id,
+                    "sdp": sdp,
+                },
+            }
+        )
+
+    async def handle_webrtc_ice_candidate(self, data):
+        to_user_id = data["to"]
+        candidate = data["candidate"]
+
+        await self.channel_layer.group_send(
+            f"user_{to_user_id}",
+            {
+                "type": "webrtc.ice_candidate",
+                "ice": {
+                    "from": self.user.id,
+                    "candidate": candidate,
                 },
             }
         )
@@ -100,6 +151,24 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             "type": "chat_message",
             **event["message"],
+        }))
+
+    async def webrtc_offer(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "webrtc_offer",
+            **event["offer"],
+        }))
+
+    async def webrtc_answer(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "webrtc_answer",
+            **event["answer"],
+        }))
+
+    async def webrtc_ice_candidate(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "webrtc_ice_candidate",
+            **event["ice"],
         }))
 
     async def call_incoming(self, event):

@@ -1,5 +1,6 @@
 package com.example.frontend
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -8,6 +9,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -15,50 +18,41 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.example.frontend.ChatViewModel
 
 @Composable
-fun ChatScreen(viewModel: ChatViewModel) {
+fun ChatScreen(viewModel: ChatViewModel, onNavigateToCall: () -> Unit) {
     val selectedUserId by viewModel.selectedUserId
     val messages = viewModel.messages
     val currentMessage by viewModel.currentMessage
+    val insets = WindowInsets.systemBars.asPaddingValues()
 
-    Row(modifier = Modifier.fillMaxSize().background(Color(0xFF121212))) {
-        // Lista znajomych (lewa kolumna)
-        Column(
-            modifier = Modifier
-                .width(80.dp)
-                .fillMaxHeight()
-                .background(Color(0xFF1E1E1E))
-                .padding(8.dp),
-            verticalArrangement = Arrangement.Top,
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            listOf(1, 2, 3).forEach { userId ->
-                Box(
-                    modifier = Modifier
-                        .size(48.dp)
-                        .padding(4.dp)
-                        .clip(CircleShape)
-                        .background(if (userId == selectedUserId) Color(0xFFBB86FC) else Color.Gray)
-                        .clickable { viewModel.selectUser(userId) },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = userId.toString(),
-                        color = Color.White,
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
+    val showFriendList = remember { mutableStateOf(true) }
+
+    Row(modifier = Modifier
+        .fillMaxSize()
+        .padding(insets)
+        .background(Color(0xFF121212))) {
+
+        AnimatedVisibility(visible = showFriendList.value) {
+            FriendList(users = listOf(1, 2, 3)) { userId ->
+                viewModel.selectUser(userId)
+                showFriendList.value = false
             }
         }
 
-        // Główne okno czatu
         Column(modifier = Modifier.fillMaxSize()) {
+            selectedUserId?.let {
+                ChatTopBar(user = it, onCallClick = onNavigateToCall, onBack = {
+                    showFriendList.value = true
+                })
+            }
+
             LazyColumn(
                 modifier = Modifier
                     .weight(1f)
@@ -84,12 +78,9 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     }
                 }
 
-                items(messages.reversed()) { message ->
-                    ChatBubble(message)
-                }
+                items(messages.reversed()) { ChatBubble(it) }
             }
 
-            // Pole do wpisywania wiadomości
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -102,7 +93,7 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     onValueChange = viewModel::onMessageChange,
                     modifier = Modifier
                         .weight(1f)
-                        .height(48.dp),
+                        .height(60.dp),
                     colors = TextFieldDefaults.colors(
                         unfocusedContainerColor = Color(0xFF2C2C2C),
                         focusedContainerColor = Color(0xFF2C2C2C),
@@ -115,14 +106,14 @@ fun ChatScreen(viewModel: ChatViewModel) {
                     placeholder = { Text("Wpisz wiadomość...", color = Color.Gray) },
                     shape = RoundedCornerShape(24.dp),
                     singleLine = true,
-                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
+                    textStyle = TextStyle(fontSize = 14.sp)
                 )
 
                 IconButton(
                     onClick = { viewModel.sendMessage() },
                     modifier = Modifier
                         .padding(start = 8.dp)
-                        .size(40.dp)
+                        .size(52.dp)
                         .background(Color(0xFFBB86FC), shape = CircleShape)
                 ) {
                     Icon(
@@ -137,11 +128,82 @@ fun ChatScreen(viewModel: ChatViewModel) {
 }
 
 @Composable
-fun ChatBubble(message: String) {
-    val isOwnMessage = message.startsWith("Ty:")
-    val bubbleColor = if (isOwnMessage) Color(0xFF3700B3) else Color(0xFF2C2C2C)
-    val textColor = Color.White
-    val alignment = if (isOwnMessage) Alignment.CenterEnd else Alignment.CenterStart
+fun FriendList(users: List<Int>, onSelect: (Int) -> Unit) {
+    Column(
+        modifier = Modifier
+            .width(250.dp)
+            .fillMaxHeight()
+            .background(Color(0xFF1E1E1E))
+            .padding(8.dp)
+    ) {
+        users.forEach { userId ->
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onSelect(userId) }
+                    .padding(vertical = 8.dp)
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .clip(CircleShape)
+                            .background(Color.Gray)
+                    ) {
+                        // Avatar Placeholder
+                    }
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Column {
+                        Text(text = "User_$userId", color = Color.White, fontWeight = FontWeight.Bold)
+                        Text(text = "7d+", color = Color.Gray, fontSize = 12.sp)
+                    }
+                }
+                Text(
+                    text = "Ostatnia wiadomość",
+                    color = Color.LightGray,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Divider(color = Color.DarkGray, thickness = 1.dp, modifier = Modifier.padding(vertical = 4.dp))
+            }
+        }
+    }
+}
+
+@Composable
+fun ChatTopBar(user: Int, onCallClick: () -> Unit, onBack: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .background(Color(0xFF2C2C2C))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        IconButton(onClick = onBack) {
+            Icon(Icons.Default.ArrowBack, contentDescription = "Wstecz", tint = Color.White)
+        }
+        Box(
+            modifier = Modifier
+                .size(40.dp)
+                .clip(CircleShape)
+                .background(Color.Gray)
+        ) {
+            // Avatar Placeholder
+        }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(text = "User_$user", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Spacer(modifier = Modifier.weight(1f))
+        IconButton(onClick = onCallClick) {
+            Icon(Icons.Default.Phone, contentDescription = "Zadzwoń", tint = Color.Green)
+        }
+    }
+}
+
+@Composable
+fun ChatBubble(message: Message) {
+    val bubbleColor = if (message.isOwn) Color(0xFF3700B3) else Color(0xFF2C2C2C)
+    val alignment = if (message.isOwn) Alignment.CenterEnd else Alignment.CenterStart
 
     Box(
         modifier = Modifier
@@ -155,7 +217,12 @@ fun ChatBubble(message: String) {
                 .padding(12.dp)
                 .widthIn(max = 280.dp)
         ) {
-            Text(text = message, color = textColor, fontSize = 14.sp)
+            Text(text = message.text, color = Color.White, fontSize = 14.sp)
         }
     }
 }
+
+data class Message(
+    val text: String,
+    val isOwn: Boolean
+)
