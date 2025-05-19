@@ -32,95 +32,99 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToCall: () -> Unit) {
     val currentMessage by viewModel.currentMessage
     val insets = WindowInsets.systemBars.asPaddingValues()
 
-    val showFriendList = remember { mutableStateOf(true) }
+    var showFriendList = remember { mutableStateOf(true) }
 
-    Row(modifier = Modifier
-        .fillMaxSize()
-        .padding(insets)
-        .background(Color(0xFF121212))) {
-
-        AnimatedVisibility(visible = showFriendList.value) {
-            FriendList(users = listOf(1, 2, 3)) { userId ->
-                viewModel.selectUser(userId)
-                showFriendList.value = false
-            }
-        }
-
-        Column(modifier = Modifier.fillMaxSize()) {
-            selectedUserId?.let {
-                ChatTopBar(user = it, onCallClick = onNavigateToCall, onBack = {
-                    showFriendList.value = true
-                })
-            }
-
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                reverseLayout = true
-            ) {
-                item {
-                    if (viewModel.canLoadMore.value) {
-                        Button(
-                            onClick = {
-                                viewModel.currentOffset.value += 50
-                                viewModel.loadMessagesForUser(
-                                    selectedUserId,
-                                    offset = viewModel.currentOffset.value,
-                                    appendToTop = true
-                                )
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
-                        ) {
-                            Text("Wczytaj starsze", color = Color.White, fontSize = 12.sp)
-                        }
-                    }
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(insets)
+            .background(Color(0xFF121212))
+    ) {
+        if (showFriendList.value) {
+            FriendList(
+                users = listOf(1, 2, 3),
+                onSelect = { userId ->
+                    viewModel.selectUser(userId)
+                    showFriendList.value = false
                 }
-
-                items(messages.reversed()) { ChatBubble(it) }
-            }
-
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF1E1E1E))
-                    .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextField(
-                    value = currentMessage,
-                    onValueChange = viewModel::onMessageChange,
+            )
+        } else {
+            Column(modifier = Modifier.fillMaxSize()) {
+                ChatTopBar(
+                    user = selectedUserId ?: 0,
+                    onCallClick = onNavigateToCall,
+                    onBack = { showFriendList.value = true }
+                )
+                LazyColumn(
                     modifier = Modifier
                         .weight(1f)
-                        .height(60.dp),
-                    colors = TextFieldDefaults.colors(
-                        unfocusedContainerColor = Color(0xFF2C2C2C),
-                        focusedContainerColor = Color(0xFF2C2C2C),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        cursorColor = Color.White,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    ),
-                    placeholder = { Text("Wpisz wiadomość...", color = Color.Gray) },
-                    shape = RoundedCornerShape(24.dp),
-                    singleLine = true,
-                    textStyle = TextStyle(fontSize = 14.sp)
-                )
-
-                IconButton(
-                    onClick = { viewModel.sendMessage() },
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .size(52.dp)
-                        .background(Color(0xFFBB86FC), shape = CircleShape)
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    reverseLayout = true
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.Send,
-                        contentDescription = "Wyślij",
-                        tint = Color.White
+                    item {
+                        if (viewModel.canLoadMore.value) {
+                            Button(
+                                onClick = {
+                                    viewModel.currentOffset.value += 50
+                                    viewModel.loadMessagesForUser(
+                                        selectedUserId,
+                                        offset = viewModel.currentOffset.value,
+                                        appendToTop = true
+                                    )
+                                },
+                                colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
+                            ) {
+                                Text("Wczytaj starsze", color = Color.White, fontSize = 12.sp)
+                            }
+                        }
+                    }
+
+                    items(messages.reversed()) { ChatBubble(it) }
+                }
+
+                // Pole do wpisywania wiadomości
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1E1E1E))
+                        .padding(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextField(
+                        value = currentMessage,
+                        onValueChange = viewModel::onMessageChange,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(60.dp),
+                        colors = TextFieldDefaults.colors(
+                            unfocusedContainerColor = Color(0xFF2C2C2C),
+                            focusedContainerColor = Color(0xFF2C2C2C),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = Color.White,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        placeholder = { Text("Wpisz wiadomość...", color = Color.Gray) },
+                        shape = RoundedCornerShape(24.dp),
+                        singleLine = true,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
                     )
+
+                    IconButton(
+                        onClick = { viewModel.sendMessage() },
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .size(52.dp)
+                            .background(Color(0xFFBB86FC), shape = CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Send,
+                            contentDescription = "Wyślij",
+                            tint = Color.White
+                        )
+                    }
                 }
             }
         }
@@ -131,8 +135,7 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToCall: () -> Unit) {
 fun FriendList(users: List<Int>, onSelect: (Int) -> Unit) {
     Column(
         modifier = Modifier
-            .width(250.dp)
-            .fillMaxHeight()
+            .fillMaxSize()
             .background(Color(0xFF1E1E1E))
             .padding(8.dp)
     ) {
@@ -146,26 +149,27 @@ fun FriendList(users: List<Int>, onSelect: (Int) -> Unit) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(60.dp)
                             .clip(CircleShape)
                             .background(Color.Gray)
                     ) {
                         // Avatar Placeholder
                     }
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Spacer(modifier = Modifier.width(16.dp))
                     Column {
-                        Text(text = "User_$userId", color = Color.White, fontWeight = FontWeight.Bold)
-                        Text(text = "7d+", color = Color.Gray, fontSize = 12.sp)
+                        Text(text = "User_$userId", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
+                        Text(text = "7d+", color = Color.Gray, fontSize = 18.sp)
                     }
                 }
                 Text(
                     text = "Ostatnia wiadomość",
                     color = Color.LightGray,
-                    fontSize = 12.sp,
+                    fontSize = 20.sp,
                     maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = 12.dp)
                 )
-                Divider(color = Color.DarkGray, thickness = 1.dp, modifier = Modifier.padding(vertical = 4.dp))
+                Divider(color = Color.DarkGray, thickness = 1.dp, modifier = Modifier.padding(vertical = 12.dp))
             }
         }
     }

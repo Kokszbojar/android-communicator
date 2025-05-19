@@ -1,15 +1,15 @@
 from livekit.api import AccessToken, VideoGrants
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import generics, permissions, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.db.models import Q
-from comms_api.models import Message
-from comms_api.serializers import MessageSerializer
+from comms_api.models import Message, FriendRequest
+from comms_api.serializers import MessageSerializer, FriendRequestSerializer, UserSerializer
 
 
 class RegisterView(APIView):
@@ -97,3 +97,89 @@ def livekit_token_view(request):
     print(token)
     return Response({"token": token})
 
+
+class SendFriendRequestView(generics.CreateAPIView):
+    permission_classes = [permissions.IsAuthenticated]
+    serializer_class = FriendRequestSerializer
+
+    def perform_create(self, serializer):
+        serializer.save(from_user=self.request.user)
+
+
+class RespondToFriendRequestView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def patch(self, request, pk):
+        try:
+            fr = FriendRequest.objects.get(pk=pk, to_user=request.user)
+        except FriendRequest.DoesNotExist:
+            return Response({"detail": "Nie znaleziono zaproszenia."}, status=status.HTTP_404_NOT_FOUND)
+
+        action = request.data.get("action")
+        if action == "accept":
+            fr.status = FriendRequest.Status.ACCEPTED
+            fr.save()
+            # TODO: dodać relację znajomości (jeśli model Friend istnieje)
+            return Response({"detail": "Zaproszenie zaakceptowane."})
+        elif action == "reject":
+            fr.status = FriendRequest.Status.REJECTED
+            fr.save()
+            return Response({"detail": "Zaproszenie odrzucone."})
+        else:
+            return Response({"detail": "Niepoprawna akcja."}, status=status.HTTP_400_BAD_REQUEST)
+
+
+class FriendRequestsView(APIView):
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get(self, request):
+        received = FriendRequest.objects.filter(to_user=request.user, status=FriendRequest.Status.PENDING)
+        sent = FriendRequest.objects.filter(from_user=request.user, status=FriendRequest.Status.PENDING)
+        return Response({
+            "received": FriendRequestSerializer(received, many=True).data,
+            "sent": FriendRequestSerializer(sent, many=True).data
+        })
+
+
+class FriendsListView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        friendships = FriendRequest.objects.filter(
+            Q(from_user=user) | Q(to_user=user),
+            status=FriendRequest.Status.ACCEPTED
+        )
+
+        friend_ids = set()
+        for fr in friendships:
+            if fr.from_user == user:
+                friend_ids.add(fr.to_user.id)
+            else:
+                friend_ids.add(fr.from_user.id)
+
+        friends = User.objects.filter(id__in=friend_ids)
+        return Response(UserSerializer(friends, many=True).data)
+
+
+class RemoveFriendView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def delete(self, request, user_id):
+        user = request.user
+        try:
+            friend = User.objects.get(id=user_id)
+        except User.DoesNotExist:
+            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+
+        deleted_count, _ = FriendRequest.objects.filter(
+            status=FriendRequest.Status.ACCEPTED
+        ).filter(
+            (Q(from_user=user) & Q(to_user=friend)) |
+            (Q(from_user=friend) & Q(to_user=user))
+        ).delete()
+
+        if deleted_count:
+            return Response({"message": "Friend removed."}, status=status.HTTP_204_NO_CONTENT)
+        else:
+            return Response({"error": "Friendship not found."}, status=status.HTTP_404_NOT_FOUND)

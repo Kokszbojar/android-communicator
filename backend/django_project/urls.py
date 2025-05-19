@@ -16,13 +16,24 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path
-from comms_api.views import RegisterView, LoginView, RefreshTokenView, ChatHistoryView, livekit_token_view
+from comms_api.views import (
+    RegisterView, LoginView, RefreshTokenView, ChatHistoryView, livekit_token_view, SendFriendRequestView, RespondToFriendRequestView, FriendRequestsView, FriendsListView, RemoveFriendView
+)
 
 urlpatterns = [
     path('admin/', admin.site.urls),
+
     path('api/register/', RegisterView.as_view()),
     path('api/login/', LoginView.as_view()),
+
     path("api/token/refresh/", RefreshTokenView.as_view()),
-    path("api/chat/history/", ChatHistoryView.as_view()),
     path('api/livekit-token/', livekit_token_view),
+
+    path("api/chat/history/", ChatHistoryView.as_view()),
+
+    path("api/friends/request/", SendFriendRequestView.as_view(), name="send_friend_request"),
+    path("api/friends/request/<int:pk>/", RespondToFriendRequestView.as_view(), name="respond_friend_request"),
+    path("api/friends/requests/", FriendRequestsView.as_view(), name="list_friend_requests"),
+    path("api/friends/", FriendsListView.as_view(), name="friends_list"),
+    path("api/friends/remove/<int:user_id>/", RemoveFriendView.as_view(), name="remove_friend"),
 ]
