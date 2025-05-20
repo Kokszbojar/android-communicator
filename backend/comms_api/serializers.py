@@ -20,8 +20,8 @@ class CallSerializer(serializers.ModelSerializer):
 
 
 class FriendRequestSerializer(serializers.ModelSerializer):
-    from_user = serializers.ReadOnlyField(source='from_user.id')
-    to_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    from_user = serializers.ReadOnlyField(source='from_user.username')
+    to_user = serializers.ReadOnlyField(source='to_user.username')
 
     class Meta:
         model = FriendRequest

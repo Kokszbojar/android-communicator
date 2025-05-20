@@ -110,7 +110,7 @@ class RespondToFriendRequestView(APIView):
 
     def patch(self, request, pk):
         try:
-            fr = FriendRequest.objects.get(pk=pk, to_user=request.user)
+            fr = FriendRequest.objects.get(pk=pk)
         except FriendRequest.DoesNotExist:
             return Response({"detail": "Nie znaleziono zaproszenia."}, status=status.HTTP_404_NOT_FOUND)
 
@@ -124,6 +124,10 @@ class RespondToFriendRequestView(APIView):
             fr.status = FriendRequest.Status.REJECTED
             fr.save()
             return Response({"detail": "Zaproszenie odrzucone."})
+        elif action == "cancel":
+            fr.status = FriendRequest.Status.CANCELED
+            fr.save()
+            return Response({"detail": "Zaproszenie anulowane."})
         else:
             return Response({"detail": "Niepoprawna akcja."}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -182,3 +186,26 @@ class RemoveFriendView(APIView):
             return Response({"message": "Friend removed."}, status=status.HTTP_204_NO_CONTENT)
         else:
             return Response({"error": "Friendship not found."}, status=status.HTTP_404_NOT_FOUND)
+
+
+class UserSearchView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        query = request.GET.get("q", "")
+        if not query:
+            return Response([])
+
+        users = User.objects.filter(username__icontains=query).exclude(id=request.user.id)
+        results = []
+
+        for user in users:
+            request_sent = FriendRequest.objects.filter(from_user=request.user, to_user=user, status=FriendRequest.Status.PENDING).exists()
+
+            results.append({
+                "id": user.id,
+                "username": user.username,
+                "requestSent": request_sent
+            })
+
+        return Response(results)

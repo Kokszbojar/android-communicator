@@ -24,6 +24,7 @@ fun FriendsScreen(viewModel: FriendViewModel, onNavigateToChat: (Int) -> Unit) {
     val friends = viewModel.friends
     val searchResults = viewModel.searchResults
     val receivedRequests = viewModel.receivedRequests
+    val sentRequests = viewModel.sentRequests
 
     var selectedTab by remember { mutableStateOf(0) }
     val tabTitles = listOf("Znajomi", "Wyszukaj", "Zaproszenia")
@@ -86,7 +87,11 @@ fun FriendsScreen(viewModel: FriendViewModel, onNavigateToChat: (Int) -> Unit) {
                             onValueChange = { searchQuery.value = it },
                             label = { Text("Szukaj użytkownika") },
                             modifier = Modifier.fillMaxWidth(),
-                            singleLine = true
+                            singleLine = true,
+                            colors = OutlinedTextFieldDefaults.colors(
+                                unfocusedTextColor = Color.White,
+                                focusedTextColor = Color.White
+                            )
                         )
                         Button(
                             onClick = { viewModel.searchUsers(searchQuery.value) },
@@ -110,13 +115,23 @@ fun FriendsScreen(viewModel: FriendViewModel, onNavigateToChat: (Int) -> Unit) {
 
                     2 -> { // 📬 Zaproszenia
                         if (receivedRequests.isEmpty()) {
-                            Text("Brak zaproszeń", color = Color.Gray)
+                            Text("Brak oczekujących zaproszeń", color = Color.Gray)
                         } else {
                             receivedRequests.forEach { request ->
                                 ReceivedRequestItem(
                                     request,
                                     onAccept = { viewModel.acceptRequest(request.id) },
                                     onReject = { viewModel.rejectRequest(request.id) }
+                                )
+                            }
+                        }
+                        if (sentRequests.isEmpty()) {
+                            Text("Brak wysłanych zaproszeń", color = Color.Gray)
+                        } else {
+                            sentRequests.forEach { request ->
+                                SentRequestItem(
+                                    request,
+                                    onClick = { viewModel.cancelRequest(request.id) }
                                 )
                             }
                         }
@@ -179,7 +194,7 @@ fun SearchResultItem(result: UserSearchResultDto, onSendRequest: () -> Unit) {
             modifier = Modifier.weight(1f)
         )
         when {
-            result.isAlreadyFriend -> Text("Znajomy", color = Color.Green)
+//            result.isAlreadyFriend -> Text("Znajomy", color = Color.Green)
             result.requestSent -> Text("Wysłano", color = Color.Gray)
             else -> Button(onClick = onSendRequest) {
                 Text("Zaproś")
@@ -203,7 +218,7 @@ fun ReceivedRequestItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = request.username,
+            text = request.from_user,
             color = Color.White,
             fontSize = 16.sp,
             modifier = Modifier.weight(1f)
@@ -213,6 +228,31 @@ fun ReceivedRequestItem(
         }
         OutlinedButton(onClick = onReject) {
             Text("Odrzuć")
+        }
+    }
+}
+
+@Composable
+fun SentRequestItem(
+    request: FriendRequestDto,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 6.dp)
+            .background(Color(0xFF2C2C2C))
+            .padding(12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = request.to_user,
+            color = Color.White,
+            fontSize = 16.sp,
+            modifier = Modifier.weight(1f)
+        )
+        Button(onClick = onClick, modifier = Modifier.padding(end = 8.dp)) {
+            Text("Anuluj")
         }
     }
 }

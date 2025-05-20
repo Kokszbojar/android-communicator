@@ -17,7 +17,7 @@ Including another URLconf
 from django.contrib import admin
 from django.urls import path
 from comms_api.views import (
-    RegisterView, LoginView, RefreshTokenView, ChatHistoryView, livekit_token_view, SendFriendRequestView, RespondToFriendRequestView, FriendRequestsView, FriendsListView, RemoveFriendView
+    RegisterView, LoginView, RefreshTokenView, ChatHistoryView, livekit_token_view, SendFriendRequestView, RespondToFriendRequestView, FriendRequestsView, FriendsListView, RemoveFriendView, UserSearchView
 )
 
 urlpatterns = [
@@ -30,6 +30,8 @@ urlpatterns = [
     path('api/livekit-token/', livekit_token_view),
 
     path("api/chat/history/", ChatHistoryView.as_view()),
+
+    path("api/users/search/", UserSearchView.as_view(), name="user-search"),
 
     path("api/friends/", FriendsListView.as_view(), name="friends_list"),
     path("api/friends/request/", SendFriendRequestView.as_view(), name="send_friend_request"),

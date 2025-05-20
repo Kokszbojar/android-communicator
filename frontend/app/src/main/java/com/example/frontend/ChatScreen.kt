@@ -136,7 +136,7 @@ fun ChatTopBar(friendName: String, onCallClick: () -> Unit, onBack: () -> Unit) 
             // Avatar Placeholder
         }
         Spacer(modifier = Modifier.width(8.dp))
-        Text(text = "$friendName", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+        Text(text = friendName, color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
         Spacer(modifier = Modifier.weight(1f))
         IconButton(onClick = onCallClick) {
             Icon(Icons.Default.Phone, contentDescription = "Zadzwoń", tint = Color.Green)
