@@ -37,7 +37,9 @@ import org.json.JSONObject
 import org.json.JSONArray
 import java.io.IOException
 
-class ChatViewModel(private val token: String?) : ViewModel() {
+class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
+
+    var friendName = mutableStateOf("Unknown")
 
     var messages = mutableStateListOf<Message>()
         private set
@@ -45,7 +47,6 @@ class ChatViewModel(private val token: String?) : ViewModel() {
     var currentMessage = mutableStateOf("")
         private set
 
-    var selectedUserId = mutableStateOf(1)
     var currentOffset = mutableStateOf(0)
     var canLoadMore = mutableStateOf(true)
 
@@ -54,18 +55,11 @@ class ChatViewModel(private val token: String?) : ViewModel() {
 
     init {
         connectWebSocket()
+        loadMessagesForUser(userId)
     }
 
     fun onMessageChange(newMessage: String) {
         currentMessage.value = newMessage
-    }
-
-    fun selectUser(userId: Int) {
-        selectedUserId.value = userId
-        currentOffset.value = 0
-        canLoadMore.value = true
-        messages.clear()
-        loadMessagesForUser(userId)
     }
 
     fun sendMessage() {
@@ -73,11 +67,11 @@ class ChatViewModel(private val token: String?) : ViewModel() {
         if (message.isNotBlank()) {
             val json = JSONObject()
             json.put("action", "send_message")
-            json.put("to", selectedUserId.value)
+            json.put("to", userId)
             json.put("message", message)
 
             webSocket.send(json.toString())
-            messages.add(Message(text=message, isOwn=true))
+            messages.add(Message(text=message, fromUser="", timestamp=""))
             currentMessage.value = ""
         }
     }
@@ -92,25 +86,17 @@ class ChatViewModel(private val token: String?) : ViewModel() {
                 val json = JSONObject(text)
                 when (json.getString("type")) {
                     "chat_message" -> {
-                        val fromId = json.getInt("from")
                         val content = json.getString("content")
-                        messages.add(Message(content, false))
+                        val fromUser = json.getString("sender_name")
+                        val timestamp = json.getString("timestamp")
+                        messages.add(Message(content, fromUser, timestamp))
                     }
-//                    "incoming_call" -> {
-//                        val callerId = json.getInt("caller")
-//                        val callId = json.getInt("call_id").toString()
-//                        receiveIncomingCall(CallData(callerId, callId))
-//                    }
-//                    "call_answer" -> {
-//                        val accepted = json.getBoolean("accepted")
-//                        if (accepted) _callState.value = CallState.InCall else _callState.value = CallState.Idle
-//                    }
                 }
 
             }
 
             override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                messages.add(Message("Błąd połączenia: ${t.localizedMessage}", true))
+                messages.add(Message("Błąd połączenia: ${t.localizedMessage}", "System", ""))
             }
         })
     }
@@ -136,14 +122,16 @@ class ChatViewModel(private val token: String?) : ViewModel() {
         client.newCall(request).enqueue(object : Callback {
             override fun onResponse(call: Call, response: Response) {
                 response.body?.string()?.let { body ->
-                    val jsonArray = JSONArray(body)
+                    val jsonArray = JSONObject(body).getJSONArray("data")
+                    friendName.value = JSONObject(body).getString("friendName")
                     val newMessages = mutableListOf<Message>()
 
                     for (i in 0 until jsonArray.length()) {
                         val obj = jsonArray.getJSONObject(i)
-                        val senderName = obj.getString("sender_name")
                         val content = obj.getString("content")
-                        newMessages.add(Message(content, false))
+                        val fromUser = obj.getString("sender_name")
+                        val timestamp = obj.getString("timestamp")
+                        newMessages.add(Message(content, fromUser, timestamp))
                     }
 
                     Handler(Looper.getMainLooper()).post {
@@ -235,63 +223,3 @@ class CallViewModel(
         liveKitRoom.release()
     }
 }
-
-//    private val _callState = MutableStateFlow<CallState>(CallState.Idle)
-//    val callState: StateFlow<CallState> = _callState.asStateFlow()
-//
-//    private val _incomingCall = MutableStateFlow<CallData?>(null)
-//    val incomingCall: StateFlow<CallData?> = _incomingCall.asStateFlow()
-//
-//    fun initiateCall(calleeId: Int) {
-//        val json = JSONObject()
-//        json.put("action", "call_user")
-//        json.put("to", calleeId)
-//
-//        webSocket.send(json.toString())
-//        _callState.value = CallState.Calling
-//    }
-//
-//    fun receiveIncomingCall(callData: CallData) {
-//        _incomingCall.value = callData
-//        _callState.value = CallState.Ringing
-//    }
-//
-//    fun acceptCall() {
-//        val call = incomingCall.value ?: return
-//        val json = JSONObject()
-//        json.put("action", "answer_call")
-//        json.put("call_id", call.callId)
-//        json.put("accepted", true)
-//
-//        webSocket.send(json.toString())
-//        _callState.value = CallState.InCall
-//    }
-//
-//    fun declineCall() {
-//        val call = incomingCall.value ?: return
-//        val json = JSONObject()
-//        json.put("action", "answer_call")
-//        json.put("call_id", call.callId)
-//        json.put("accepted", false)
-//
-//        webSocket.send(json.toString())
-//        _callState.value = CallState.Idle
-//        _incomingCall.value = null
-//    }
-//
-//    fun endCall() {
-//        // Zakończ połączenie
-//        // ...
-//        _callState.value = CallState.Idle
-//    }
-//
-//}
-//
-//sealed class CallState {
-//    object Idle : CallState()
-//    object Calling : CallState()
-//    object Ringing : CallState()
-//    object InCall : CallState()
-//}
-//
-//data class CallData(val callerId: Int, val callId: String)

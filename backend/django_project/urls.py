@@ -31,9 +31,9 @@ urlpatterns = [
 
     path("api/chat/history/", ChatHistoryView.as_view()),
 
-    path("api/friends/request/", SendFriendRequestView.as_view(), name="send_friend_request"),
-    path("api/friends/request/<int:pk>/", RespondToFriendRequestView.as_view(), name="respond_friend_request"),
-    path("api/friends/requests/", FriendRequestsView.as_view(), name="list_friend_requests"),
     path("api/friends/", FriendsListView.as_view(), name="friends_list"),
+    path("api/friends/request/", SendFriendRequestView.as_view(), name="send_friend_request"),
+    path("api/friends/requests/", FriendRequestsView.as_view(), name="list_friend_requests"),
+    path("api/friends/request/<int:pk>/", RespondToFriendRequestView.as_view(), name="respond_friend_request"),
     path("api/friends/remove/<int:user_id>/", RemoveFriendView.as_view(), name="remove_friend"),
 ]

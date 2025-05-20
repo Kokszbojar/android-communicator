@@ -39,7 +39,6 @@ class LoginView(APIView):
 class RefreshTokenView(APIView):
     def post(self, request):
         refresh = request.data.get("refresh")
-
         if not refresh:
             return Response({"error": "Brak refresh tokena"}, status=status.HTTP_400_BAD_REQUEST)
 
@@ -66,12 +65,12 @@ class ChatHistoryView(APIView):
             return Response({"error": "user_id is required"}, status=400)
 
         messages = Message.objects.filter(
-            (Q(sender=user) & Q(recipient_id=other_user_id)) |
-            (Q(sender_id=other_user_id) & Q(recipient=user))
+            (Q(sender=user) and Q(recipient__id=other_user_id)) |
+            (Q(sender__id=other_user_id) and Q(recipient=user))
         ).order_by("-timestamp")[offset: offset + limit]
 
         serialized = MessageSerializer(messages, many=True)
-        return Response(serialized.data)
+        return Response({"data": serialized.data, "friendName": User.objects.get(id=other_user_id).username})
 
 
 @api_view(['GET'])
@@ -159,7 +158,7 @@ class FriendsListView(APIView):
                 friend_ids.add(fr.from_user.id)
 
         friends = User.objects.filter(id__in=friend_ids)
-        return Response(UserSerializer(friends, many=True).data)
+        return Response(UserSerializer(friends, many=True, context={"request": request}).data)
 
 
 class RemoveFriendView(APIView):

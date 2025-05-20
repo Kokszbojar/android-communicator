@@ -61,29 +61,33 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         WindowCompat.setDecorFitsSystemWindows(window, false)
 
-        val authViewModel = AuthViewModel()
         val tokenManager = TokenManager(this)
 
         setContent {
             val navController = rememberNavController()
             val savedToken = tokenManager.getToken()
+            val context = LocalContext.current
 
             LaunchedEffect(savedToken) {
-                if (savedToken != null) {
+                if (savedToken == null) {
                     navController.navigate("login") {
-                        popUpTo("call") { inclusive = true }
+                        popUpTo("friends") { inclusive = true }
                     }
                 }
-                startTokenRefreshLoop(tokenManager)                                         // Rozpoczęcie pętli odświeżania co 5 minut
+                startTokenRefreshLoop(              // Rozpoczęcie pętli odświeżania co 5 minut
+                    context,
+                    tokenManager
+                )
             }
 
             NavHost(navController = navController, startDestination = "login") {
                 composable("login") {
                     LoginScreen(
-                        viewModel = authViewModel,
+                        viewModel = AuthViewModel(tokenManager),
                         onLoginSuccess = { (access, refresh) ->
+                            Log.d("AuthInterceptor", "Refresh. Token: $access")
                             tokenManager.saveTokens(access, refresh)
-                            navController.navigate("chat") {
+                            navController.navigate("friends") {
                                 popUpTo("login") { inclusive = true }
                             }
                         },
@@ -94,7 +98,7 @@ class MainActivity : ComponentActivity() {
                 }
                 composable("register") {
                     RegisterScreen(
-                        viewModel = authViewModel,
+                        viewModel = AuthViewModel(tokenManager),
                         onRegisterSuccess = {
                             navController.navigate("register") {
                                 popUpTo("login") { inclusive = true }
@@ -105,17 +109,31 @@ class MainActivity : ComponentActivity() {
                         }
                     )
                 }
-                composable("chat") {
-                    val viewModel = ChatViewModel(token = tokenManager.getToken())
-                    ChatScreen(
-                        viewModel,
-                        onNavigateToCall = {
-                            navController.navigate("call")
-                        }
+                composable("friends") {
+                    FriendsScreen(
+                        viewModel = FriendViewModel(tokenManager),
+                        onNavigateToChat = { userId ->
+                            navController.navigate("chat/$userId")
+                        },
                     )
                 }
+                composable("chat/{userId}") { backStackEntry ->
+                    val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull()
+                    if (userId != null) {
+                        val viewModel =
+                            ChatViewModel(userId = userId, token = tokenManager.getToken())
+                        ChatScreen(
+                            viewModel,
+                            onNavigateToCall = {
+                                navController.navigate("call")
+                            },
+                            onNavigateToFriends = {
+                                navController.navigate("friends")
+                            }
+                        )
+                    }
+                }
                 composable("call") {
-                    val context = LocalContext.current
                     val viewModel = remember { CallViewModel(context) }
                     var token by remember { mutableStateOf<String?>(null) }
 
@@ -141,16 +159,23 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun refreshToken(tokenManager: TokenManager, onResult: (Boolean) -> Unit) {
+    fun refreshToken(
+        context: android.content.Context,
+        tokenManager: TokenManager,
+        onResult: (Boolean) -> Unit
+    ) {
         val refreshToken = tokenManager.getRefreshToken()
         if (refreshToken == null) {
             onResult(false)
             return
         }
 
-        val call = RetrofitClient.instance.refresh(TokenRequest(refreshToken))
+        val call = RetrofitClient.getInstance(tokenManager).refresh(TokenRequest(refreshToken))
         call.enqueue(object : Callback<AuthResponse> {
-            override fun onResponse(call: Call<AuthResponse>, response: Response<AuthResponse>) {
+            override fun onResponse(
+                call: Call<AuthResponse>,
+                response: Response<AuthResponse>
+            ) {
                 if (response.isSuccessful) {
                     val newAccessToken = response.body()?.access
                     val newRefreshToken = response.body()?.refresh ?: refreshToken
@@ -158,8 +183,7 @@ class MainActivity : ComponentActivity() {
                     if (newAccessToken != null) {
                         tokenManager.saveTokens(newAccessToken, newRefreshToken)
                         onResult(true)
-                    }
-                    else {
+                    } else {
                         onResult(false)
                     }
                 } else {
@@ -174,11 +198,14 @@ class MainActivity : ComponentActivity() {
         })
     }
 
-    private fun startTokenRefreshLoop(tokenManager: TokenManager) {
+    fun startTokenRefreshLoop(
+        context: android.content.Context,
+        tokenManager: TokenManager
+    ) {
         val handler = Handler(Looper.getMainLooper())
         val refreshRunnable = object : Runnable {
             override fun run() {
-                refreshToken(tokenManager) { success ->
+                refreshToken(context, tokenManager) { success ->
                     if (!success) {
                         println("Nie udało się odświeżyć tokena.")
                     }

@@ -1,12 +1,14 @@
 package com.example.frontend
 
+import android.content.Context
 import androidx.lifecycle.ViewModel
+import androidx.lifecycle.viewModelScope
 import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 import android.util.Log
 
-class AuthViewModel : ViewModel() {
+class AuthViewModel(private val tokenManager: TokenManager) : ViewModel() {
 
     fun register(username: String, password: String, onResult: (Boolean) -> Unit) {
         val call = RetrofitClient.instance.register(AuthRequest(username, password))
