@@ -21,11 +21,12 @@ class CallSerializer(serializers.ModelSerializer):
 
 class FriendRequestSerializer(serializers.ModelSerializer):
     from_user = serializers.ReadOnlyField(source='from_user.username')
-    to_user = serializers.ReadOnlyField(source='to_user.username')
+    to_user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    friend = serializers.ReadOnlyField(source='to_user.username')
 
     class Meta:
         model = FriendRequest
-        fields = ['id', 'from_user', 'to_user', 'status', 'created_at', 'responded_at']
+        fields = ['id', 'from_user', 'to_user', 'friend', 'status', 'created_at', 'responded_at']
         read_only_fields = ['status', 'created_at', 'responded_at']
 
     def validate(self, data):
@@ -49,7 +50,6 @@ class FriendRequestSerializer(serializers.ModelSerializer):
 
     def create(self, validated_data):
         return FriendRequest.objects.create(
-            from_user=self.context['request'].user,
             **validated_data
         )
 

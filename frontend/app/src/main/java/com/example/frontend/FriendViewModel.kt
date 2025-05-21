@@ -57,7 +57,8 @@ class FriendViewModel(private val tokenManager: TokenManager) : ViewModel() {
                 fetchRequests()
             }
 
-            override fun onFailure(call: Call<Void>, t: Throwable) {}
+            override fun onFailure(call: Call<Void>, t: Throwable) {
+            }
         })
     }
 
@@ -76,7 +77,7 @@ class FriendViewModel(private val tokenManager: TokenManager) : ViewModel() {
     }
 
     fun acceptRequest(requestId: Int) {
-        api.respondToRequest(requestId, FriendRequestAction("accept")).enqueue(object : Callback<Void> {
+        api.acceptRequest(requestId).enqueue(object : Callback<Void> {
             override fun onResponse(call: Call<Void>, response: Response<Void>) {
                 fetchFriends()
                 fetchRequests()
@@ -86,8 +87,8 @@ class FriendViewModel(private val tokenManager: TokenManager) : ViewModel() {
         })
     }
 
-    fun rejectRequest(requestId: Int) {
-        api.respondToRequest(requestId, FriendRequestAction("reject")).enqueue(object : Callback<Void> {
+    fun deleteRequest(requestId: Int) {
+        api.deleteRequest(requestId).enqueue(object : Callback<Void> {
             override fun onResponse(call: Call<Void>, response: Response<Void>) {
                 fetchRequests()
             }
@@ -96,10 +97,10 @@ class FriendViewModel(private val tokenManager: TokenManager) : ViewModel() {
         })
     }
 
-    fun cancelRequest(requestId: Int) {
-        api.respondToRequest(requestId, FriendRequestAction("cancel")).enqueue(object : Callback<Void> {
+    fun removeFriend(friendId: Int) {
+        api.removeFriend(friendId).enqueue(object : Callback<Void> {
             override fun onResponse(call: Call<Void>, response: Response<Void>) {
-                fetchRequests()
+                fetchFriends()
             }
 
             override fun onFailure(call: Call<Void>, t: Throwable) {}

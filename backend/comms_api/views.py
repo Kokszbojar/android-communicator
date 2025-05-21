@@ -114,22 +114,22 @@ class RespondToFriendRequestView(APIView):
         except FriendRequest.DoesNotExist:
             return Response({"detail": "Nie znaleziono zaproszenia."}, status=status.HTTP_404_NOT_FOUND)
 
-        action = request.data.get("action")
-        if action == "accept":
-            fr.status = FriendRequest.Status.ACCEPTED
-            fr.save()
-            # TODO: dodać relację znajomości (jeśli model Friend istnieje)
-            return Response({"detail": "Zaproszenie zaakceptowane."})
-        elif action == "reject":
-            fr.status = FriendRequest.Status.REJECTED
-            fr.save()
-            return Response({"detail": "Zaproszenie odrzucone."})
-        elif action == "cancel":
-            fr.status = FriendRequest.Status.CANCELED
-            fr.save()
-            return Response({"detail": "Zaproszenie anulowane."})
+        fr.status = FriendRequest.Status.ACCEPTED
+        fr.save()
+        return Response({"detail": "Zaproszenie zaakceptowane."})
+
+    def delete(self, request, pk):
+        try:
+            fr = FriendRequest.objects.get(pk=pk)
+        except FriendRequest.DoesNotExist:
+            return Response({"detail": "Nie znaleziono zaproszenia."}, status=status.HTTP_404_NOT_FOUND)
+
+        deleted_count, _ = fr.delete()
+
+        if deleted_count:
+            return Response({"message": "Zaproszenie usunięte."}, status=status.HTTP_204_NO_CONTENT)
         else:
-            return Response({"detail": "Niepoprawna akcja."}, status=status.HTTP_400_BAD_REQUEST)
+            return Response({"error": "Zaproszenie do usunięcia nie istnieje."}, status=status.HTTP_404_NOT_FOUND)
 
 
 class FriendRequestsView(APIView):
@@ -201,11 +201,13 @@ class UserSearchView(APIView):
 
         for user in users:
             request_sent = FriendRequest.objects.filter(from_user=request.user, to_user=user, status=FriendRequest.Status.PENDING).exists()
+            request_received = FriendRequest.objects.filter(from_user=user, to_user=request.user, status=FriendRequest.Status.PENDING).exists()
 
             results.append({
                 "id": user.id,
                 "username": user.username,
-                "requestSent": request_sent
+                "requestSent": request_sent,
+                "requestReceived": request_received
             })
 
         return Response(results)

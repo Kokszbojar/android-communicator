@@ -104,9 +104,12 @@ fun FriendsScreen(viewModel: FriendViewModel, onNavigateToChat: (Int) -> Unit) {
 
                         if (searchResults.isNotEmpty()) {
                             searchResults.forEach { result ->
-                                SearchResultItem(result) {
-                                    viewModel.sendFriendRequest(result.id)
-                                }
+                                SearchResultItem(
+                                    result,
+                                    friends,
+                                    onSendRequest = { viewModel.sendFriendRequest(result.id) },
+                                    onRemoveFriend = { viewModel.removeFriend(result.id) }
+                                )
                             }
                         } else {
                             Text("Brak wyników", color = Color.Gray)
@@ -121,7 +124,7 @@ fun FriendsScreen(viewModel: FriendViewModel, onNavigateToChat: (Int) -> Unit) {
                                 ReceivedRequestItem(
                                     request,
                                     onAccept = { viewModel.acceptRequest(request.id) },
-                                    onReject = { viewModel.rejectRequest(request.id) }
+                                    onReject = { viewModel.deleteRequest(request.id) }
                                 )
                             }
                         }
@@ -131,7 +134,7 @@ fun FriendsScreen(viewModel: FriendViewModel, onNavigateToChat: (Int) -> Unit) {
                             sentRequests.forEach { request ->
                                 SentRequestItem(
                                     request,
-                                    onClick = { viewModel.cancelRequest(request.id) }
+                                    onClick = { viewModel.deleteRequest(request.id) }
                                 )
                             }
                         }
@@ -178,7 +181,8 @@ fun FriendItem(friend: FriendDto, onClick: () -> Unit) {
 }
 
 @Composable
-fun SearchResultItem(result: UserSearchResultDto, onSendRequest: () -> Unit) {
+fun SearchResultItem(result: UserSearchResultDto, friends: List<FriendDto>, onSendRequest: () -> Unit, onRemoveFriend: () -> Unit) {
+    val isAlreadyFriend = friends.any { it.username == result.username }
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -194,8 +198,11 @@ fun SearchResultItem(result: UserSearchResultDto, onSendRequest: () -> Unit) {
             modifier = Modifier.weight(1f)
         )
         when {
-//            result.isAlreadyFriend -> Text("Znajomy", color = Color.Green)
+            isAlreadyFriend -> Button(onClick = onRemoveFriend) {
+                Text("Usuń")
+            }
             result.requestSent -> Text("Wysłano", color = Color.Gray)
+            result.requestReceived -> Text("Oczekuje", color = Color.Yellow)
             else -> Button(onClick = onSendRequest) {
                 Text("Zaproś")
             }
@@ -246,7 +253,7 @@ fun SentRequestItem(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
-            text = request.to_user,
+            text = request.friend,
             color = Color.White,
             fontSize = 16.sp,
             modifier = Modifier.weight(1f)
