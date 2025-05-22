@@ -10,6 +10,7 @@ import androidx.lifecycle.lifecycleScope
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
+import android.util.Base64
 import android.util.Log
 import android.view.View
 import androidx.compose.foundation.layout.fillMaxSize
@@ -35,7 +36,9 @@ import livekit.org.webrtc.EglBase
 import okhttp3.*
 import org.json.JSONObject
 import org.json.JSONArray
+import java.io.File
 import java.io.IOException
+import java.net.URLConnection
 
 class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
 
@@ -76,6 +79,34 @@ class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
         }
     }
 
+    fun sendFileMessage(file: File, fileType: String, mimeType: String) {
+        val base64 = encodeFileToBase64(file, mimeType)
+        val json = JSONObject().apply {
+            put("action", "send_message")
+            put("to", userId)
+            put("message", "")
+            put("file", base64)
+            put("file_type", fileType)
+        }
+
+        webSocket.send(json.toString())
+        messages.add(
+            Message(
+                text = "",
+                fromUser = "",
+                timestamp = "",
+                fileUrl = "",
+                fileType = fileType
+            )
+        )
+    }
+
+    private fun encodeFileToBase64(file: File, mimeType: String): String {
+        val bytes = file.readBytes()
+        val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
+        return "data:$mimeType;base64,$base64"
+    }
+
     private fun connectWebSocket() {
         val request = Request.Builder()
             .url("ws://192.168.0.130:8000/ws/chat/?token=$token") // Emulator -> host
@@ -89,7 +120,17 @@ class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
                         val content = json.getString("content")
                         val fromUser = json.getString("sender_name")
                         val timestamp = json.getString("timestamp")
-                        messages.add(Message(content, fromUser, timestamp))
+                        val fileUrl = json.getString("file_url")
+                        val fileType = json.getString("file_type")
+                        messages.add(
+                            Message(
+                                text = content,
+                                fromUser = fromUser,
+                                timestamp = timestamp,
+                                fileUrl = fileUrl,
+                                fileType = fileType
+                            )
+                        )
                     }
                 }
 
@@ -131,7 +172,9 @@ class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
                         val content = obj.getString("content")
                         val fromUser = obj.getString("sender_name")
                         val timestamp = obj.getString("timestamp")
-                        newMessages.add(Message(content, fromUser, timestamp))
+                        val fileUrl = obj.getString("file_url")
+                        val fileType = obj.getString("file_type")
+                        newMessages.add(Message(content, fromUser, timestamp, fileUrl, fileType))
                     }
 
                     Handler(Looper.getMainLooper()).post {

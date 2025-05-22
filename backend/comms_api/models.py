@@ -5,7 +5,9 @@ from django.conf import settings
 class Message(models.Model):
     sender = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="sent_messages")
     recipient = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, related_name="received_messages")
-    content = models.TextField()
+    content = models.TextField(blank=True)
+    file = models.FileField(upload_to="chat_files/", null=True, blank=True)
+    file_type = models.CharField(max_length=10, blank=True)
     timestamp = models.DateTimeField(auto_now_add=True)
     is_read = models.BooleanField(default=False)
 

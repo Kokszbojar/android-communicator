@@ -69,7 +69,7 @@ class ChatHistoryView(APIView):
             (Q(sender__id=other_user_id) and Q(recipient=user))
         ).order_by("-timestamp")[offset: offset + limit]
 
-        serialized = MessageSerializer(messages, many=True)
+        serialized = MessageSerializer(messages, many=True, context={"request": request})
         return Response({"data": serialized.data, "friendName": User.objects.get(id=other_user_id).username})
 
 

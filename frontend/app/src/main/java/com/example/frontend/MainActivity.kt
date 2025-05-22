@@ -124,6 +124,7 @@ class MainActivity : ComponentActivity() {
                             ChatViewModel(userId = userId, token = tokenManager.getToken())
                         ChatScreen(
                             viewModel,
+                            context = context,
                             onNavigateToCall = {
                                 navController.navigate("call")
                             },

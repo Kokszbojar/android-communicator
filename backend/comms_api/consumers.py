@@ -1,8 +1,11 @@
+import json
+import base64
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
-import json
+from django.core.files.base import ContentFile
 from django.contrib.auth.models import AnonymousUser, User
 from comms_api.models import Message, Call
+from comms_api.serializers import MessageSerializer
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -44,11 +47,22 @@ class ChatConsumer(AsyncWebsocketConsumer):
         to_user_id = data["to"]
         content = data["message"]
         to_user = await sync_to_async(User.objects.get)(id=to_user_id)
+        file = None
+        file_type = ""
+        if "file" in data.keys():
+            file_data = data["file"]
+            file_type = data["file_type"]
+            format, file_str = file_data.split(";base64,")
+            ext = format.split("/")[-1]
+            decoded_file = ContentFile(base64.b64decode(file_str), name=f"message_{from_user.id}_{to_user_id}.{ext}")
+            file = decoded_file
 
         message = await sync_to_async(Message.objects.create)(
             sender=from_user,
             recipient=to_user,
-            content=content
+            content=content,
+            file=file,
+            file_type=file_type or ""
         )
 
         await self.channel_layer.group_send(
@@ -58,6 +72,8 @@ class ChatConsumer(AsyncWebsocketConsumer):
                 "message": {
                     "sender_name": from_user.username,
                     "content": content,
+                    "file_url": f"http://192.168.0.130:8000{message.file.url}" if message.file else None,
+                    "file_type": file_type,
                     "timestamp": str(message.timestamp),
                 },
             }

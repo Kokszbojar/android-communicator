@@ -1,6 +1,13 @@
 package com.example.frontend
 
-import androidx.compose.animation.AnimatedVisibility
+import android.app.DownloadManager
+import android.content.Context
+import android.content.Intent
+import android.net.Uri
+import android.os.Environment
+import android.util.Log
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -12,26 +19,56 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Send
+import androidx.compose.material.icons.filled.AttachFile
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.example.frontend.ChatViewModel
+import androidx.core.net.toUri
+import coil.compose.AsyncImage
+import java.io.File
+
+fun uriToFile(context: Context, uri: Uri): File? {
+    return try {
+        val inputStream = context.contentResolver.openInputStream(uri) ?: return null
+        val tempFile = File.createTempFile("upload", null, context.cacheDir)
+        tempFile.outputStream().use { output ->
+            inputStream.copyTo(output)
+        }
+        tempFile
+    } catch (e: Exception) {
+        e.printStackTrace()
+        null
+    }
+}
 
 @Composable
-fun ChatScreen(viewModel: ChatViewModel, onNavigateToCall: () -> Unit, onNavigateToFriends: () -> Unit) {
+fun ChatScreen(viewModel: ChatViewModel, context: Context, onNavigateToCall: () -> Unit, onNavigateToFriends: () -> Unit) {
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            val file = uriToFile(context, it)
+            val mimeType = context.contentResolver.getType(it) ?: "application/octet-stream"
+            val type = when {
+                mimeType.startsWith("image") -> "image"
+                mimeType.startsWith("audio") -> "audio"
+                else -> "file"
+            }
+            file?.let { safeFile -> viewModel.sendFileMessage(safeFile, type, mimeType) }
+        }
+    }
     val friendName = viewModel.friendName.value
     val selectedUserId = viewModel.userId
     val messages = viewModel.messages
     val currentMessage by viewModel.currentMessage
     val insets = WindowInsets.systemBars.asPaddingValues()
+
 
     Box(modifier = Modifier.background(Color(0xFF121212)).fillMaxSize()) {
         Column(modifier = Modifier.fillMaxSize().padding(insets)) {
@@ -65,7 +102,7 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToCall: () -> Unit, onNavigat
                     }
                 }
 
-                items(messages.reversed()) { ChatBubble(friendName, it) }
+                items(messages.reversed()) { ChatBubble(friendName, context, it) }
             }
 
             // Pole do wpisywania wiadomości
@@ -96,6 +133,20 @@ fun ChatScreen(viewModel: ChatViewModel, onNavigateToCall: () -> Unit, onNavigat
                     singleLine = true,
                     textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
                 )
+
+                IconButton(
+                    onClick = { filePickerLauncher.launch("*/*") },
+                    modifier = Modifier
+                        .padding(end = 8.dp)
+                        .size(48.dp)
+                        .background(Color.Gray, CircleShape)
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.AttachFile,
+                        contentDescription = "Dołącz plik",
+                        tint = Color.White
+                    )
+                }
 
                 IconButton(
                     onClick = { viewModel.sendMessage() },
@@ -145,7 +196,7 @@ fun ChatTopBar(friendName: String, onCallClick: () -> Unit, onBack: () -> Unit) 
 }
 
 @Composable
-fun ChatBubble(friendName: String, message: Message) {
+fun ChatBubble(friendName: String, context: Context, message: Message) {
     val bubbleColor = if (message.fromUser != friendName) Color(0xFF3700B3) else Color(0xFF2C2C2C)
     val alignment = if (message.fromUser != friendName) Alignment.CenterEnd else Alignment.CenterStart
 
@@ -161,7 +212,38 @@ fun ChatBubble(friendName: String, message: Message) {
                 .padding(12.dp)
                 .widthIn(max = 280.dp)
         ) {
-            Text(text = message.text, color = Color.White, fontSize = 14.sp)
+            if (message.text.isNotBlank()) {
+                Text(text = message.text, color = Color.White, fontSize = 14.sp)
+            }
+
+            message.fileUrl?.let { url ->
+                when (message.fileType) {
+                    "image" -> AsyncImage(
+                        model = url,
+                        contentDescription = "Obraz",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val intent = Intent(Intent.ACTION_VIEW, url.toUri())
+                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                context.startActivity(intent)
+                            }
+                    )
+                    "audio" -> Text(
+                        text = "Wiadomość audio - kliknij aby pobrać",
+                        color = Color.Cyan,
+                        modifier = Modifier.clickable {
+                            val request = DownloadManager.Request(url.toUri())
+                                .setTitle("Audio")
+                                .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "komunikator_wiadomosc_audio.mp3")
+                                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+
+                            val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                            dm.enqueue(request)
+                        }
+                    )
+                }
+            }
         }
     }
 }
@@ -169,5 +251,7 @@ fun ChatBubble(friendName: String, message: Message) {
 data class Message(
     val text: String,
     val fromUser: String,
-    val timestamp: String
+    val timestamp: String,
+    val fileUrl: String? = null,
+    val fileType: String? = null
 )

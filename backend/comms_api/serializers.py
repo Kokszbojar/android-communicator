@@ -7,10 +7,19 @@ from comms_api.models import Message, Call, FriendRequest
 
 class MessageSerializer(serializers.ModelSerializer):
     sender_name = serializers.CharField(source="sender.username")
+    file_url = serializers.SerializerMethodField()
 
     class Meta:
         model = Message
-        fields = ["id", "sender_name", "content", "timestamp"]
+        fields = ["id", "sender_name", "content", "file_url", "file_type", "timestamp"]
+
+    def get_file_url(self, obj):
+        request = self.context.get("request")
+        if obj.file and hasattr(obj.file, "url"):
+            if request:
+                return request.build_absolute_uri(obj.file.url)
+            return obj.file.url
+        return None
 
 
 class CallSerializer(serializers.ModelSerializer):
