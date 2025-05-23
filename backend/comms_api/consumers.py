@@ -74,7 +74,7 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "content": content,
                     "file_url": f"http://192.168.0.130:8000{message.file.url}" if message.file else None,
                     "file_type": file_type,
-                    "timestamp": str(message.timestamp),
+                    "timestamp": "Teraz",
                 },
             }
         )
