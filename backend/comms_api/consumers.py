@@ -1,11 +1,40 @@
 import json
 import base64
+from firebase_admin import messaging
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 from django.core.files.base import ContentFile
 from django.contrib.auth.models import AnonymousUser, User
-from comms_api.models import Message, Call
+from comms_api.models import Message, Call, UserFCMToken
 from comms_api.serializers import MessageSerializer
+
+
+async def send_fcm_notification(to_user, title, body):
+    try:
+        token_obj = await sync_to_async(UserFCMToken.objects.get)(user=to_user)
+        token = token_obj.token
+        message = messaging.Message(
+            notification=messaging.Notification(
+                title=title,
+                body=body,
+            ),
+            token=token,
+            data={
+                "type": "chat_message",
+                "user_id": str(to_user.id),
+            }
+        )
+        response = messaging.send(message)
+        print(f"FCM response: {response}")
+
+    except UserFCMToken.DoesNotExist:
+        print(f"No FCM token found for user {to_user.id}")
+    except messaging.UnregisteredError:
+        print(f"Token unregistered: {token}")
+        # np. usuń token z bazy
+        await sync_to_async(token_obj.delete)()
+    except Exception as e:
+        print(f"FCM send error: {e}")
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -77,6 +106,12 @@ class ChatConsumer(AsyncWebsocketConsumer):
                     "timestamp": "Teraz",
                 },
             }
+        )
+
+        await send_fcm_notification(
+            to_user=to_user,
+            title=f"Nowa wiadomość od {from_user.username}",
+            body=content[:60]  # skróć, jeśli długie
         )
 
     async def handle_webrtc_offer(self, data):

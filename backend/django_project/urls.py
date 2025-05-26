@@ -19,7 +19,10 @@ from django.conf import settings
 from django.conf.urls.static import static
 from django.urls import path
 from comms_api.views import (
-    RegisterView, LoginView, RefreshTokenView, ChatHistoryView, livekit_token_view, SendFriendRequestView, RespondToFriendRequestView, FriendRequestsView, FriendsListView, RemoveFriendView, UserSearchView
+    RegisterView, LoginView, RefreshTokenView, ChatHistoryView,
+    livekit_token_view, SendFriendRequestView, RespondToFriendRequestView,
+    FriendRequestsView, FriendsListView, RemoveFriendView, UserSearchView,
+    UpdateFCMTokenView
 )
 
 urlpatterns = [
@@ -40,8 +43,9 @@ urlpatterns = [
     path("api/friends/requests/", FriendRequestsView.as_view(), name="list_friend_requests"),
     path("api/friends/request/<int:pk>/", RespondToFriendRequestView.as_view(), name="respond_friend_request"),
     path("api/friends/remove/<int:user_id>/", RemoveFriendView.as_view(), name="remove_friend"),
+
+    path("api/fcm/update/", UpdateFCMTokenView.as_view(), name="update-fcm"),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL,
                           document_root=settings.MEDIA_ROOT)
-    

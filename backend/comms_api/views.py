@@ -1,14 +1,14 @@
 from livekit.api import AccessToken, VideoGrants
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import generics, permissions, status
+from rest_framework import generics, status
 from rest_framework.permissions import IsAuthenticated
 from rest_framework_simplejwt.tokens import RefreshToken, TokenError
 from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.db.models import Q
-from comms_api.models import Message, FriendRequest
+from comms_api.models import Message, FriendRequest, UserFCMToken
 from comms_api.serializers import MessageSerializer, FriendRequestSerializer, UserSerializer
 
 
@@ -18,7 +18,7 @@ class RegisterView(APIView):
         password = request.data.get("password")
         if User.objects.filter(username=username).exists():
             return Response({"error": "Użytkownik już istnieje"}, status=status.HTTP_400_BAD_REQUEST)
-        user = User.objects.create_user(username=username, password=password)
+        User.objects.create_user(username=username, password=password)
         return Response({"message": "Zarejestrowano pomyślnie"}, status=status.HTTP_201_CREATED)
 
 
@@ -91,14 +91,14 @@ def livekit_token_view(request):
             can_publish=True,
             can_publish_data=True,
             can_subscribe=True,
-            #can_publish_sources=["camera", "microphone"]
+            # can_publish_sources=["camera", "microphone"]
         )).to_jwt()
     print(token)
     return Response({"token": token})
 
 
 class SendFriendRequestView(generics.CreateAPIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
     serializer_class = FriendRequestSerializer
 
     def perform_create(self, serializer):
@@ -106,7 +106,7 @@ class SendFriendRequestView(generics.CreateAPIView):
 
 
 class RespondToFriendRequestView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def patch(self, request, pk):
         try:
@@ -133,7 +133,7 @@ class RespondToFriendRequestView(APIView):
 
 
 class FriendRequestsView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [IsAuthenticated]
 
     def get(self, request):
         received = FriendRequest.objects.filter(to_user=request.user, status=FriendRequest.Status.PENDING)
@@ -211,3 +211,14 @@ class UserSearchView(APIView):
             })
 
         return Response(results)
+
+
+class UpdateFCMTokenView(APIView):
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        token = request.data.get("token")
+        user = request.user
+        if token:
+            UserFCMToken.objects.update_or_create(user=user, defaults={"token": token})
+        return Response({"status": "updated"})
