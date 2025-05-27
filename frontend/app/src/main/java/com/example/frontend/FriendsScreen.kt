@@ -150,7 +150,10 @@ fun FriendItem(friend: FriendDto, onClick: () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable { onClick() }
+            .clickable {
+                friend.hasNewMessage = false
+                onClick()
+            }
             .padding(vertical = 8.dp)
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
@@ -163,18 +166,38 @@ fun FriendItem(friend: FriendDto, onClick: () -> Unit) {
                 // Avatar Placeholder
             }
             Spacer(modifier = Modifier.width(16.dp))
-            Column {
-                Text(text = friend.username ?: "", color = Color.White, fontWeight = FontWeight.Bold, fontSize = 18.sp)
-                Text(text = friend.timestamp ?: "", color = Color.Gray, fontSize = 18.sp)
+            Column(modifier = Modifier.weight(1f)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        text = friend.username ?: "",
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    if (friend.hasNewMessage) {
+                        Box(
+                            modifier = Modifier
+                                .size(10.dp)
+                                .background(Color.Red, CircleShape)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
+                    Text(
+                        text = friend.timestamp ?: "",
+                        color = Color.Gray,
+                        fontSize = 14.sp
+                    )
+                }
             }
         }
         Text(
             text = friend.lastMessage ?: "",
             color = Color.LightGray,
-            fontSize = 20.sp,
+            fontSize = 16.sp,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
-            modifier = Modifier.padding(top = 12.dp)
+            modifier = Modifier.padding(top = 8.dp)
         )
         Divider(color = Color.DarkGray, thickness = 1.dp, modifier = Modifier.padding(vertical = 12.dp))
     }

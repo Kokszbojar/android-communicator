@@ -1,5 +1,11 @@
 package com.example.frontend
 
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
+import android.content.Context
+import android.content.Intent
+import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -16,6 +22,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
+import androidx.core.app.NotificationCompat
 import androidx.core.view.WindowCompat
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -23,6 +30,9 @@ import androidx.navigation.compose.rememberNavController
 import com.example.frontend.ChatScreen
 import com.example.frontend.CallScreen
 import com.example.frontend.ChatViewModel
+import com.google.firebase.messaging.FirebaseMessaging
+import com.google.firebase.messaging.FirebaseMessagingService
+import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -32,6 +42,86 @@ import retrofit2.Call
 import retrofit2.Callback
 import retrofit2.Response
 import java.io.IOException
+
+class MyFirebaseMessagingService : FirebaseMessagingService() {
+    override fun onNewToken(token: String) {
+        super.onNewToken(token)
+        Log.d("FCM", "Nowy token: $token")
+    }
+
+    override fun onMessageReceived(remoteMessage: RemoteMessage) {
+        super.onMessageReceived(remoteMessage)
+        Log.d("FCM", "Wiadomość: ${remoteMessage.data}")
+
+        val title = remoteMessage.notification?.title ?: "Nowa wiadomość"
+        val body = remoteMessage.notification?.body ?: "Masz nową wiadomość"
+
+        showNotification(title, body)
+    }
+
+    private fun showNotification(title: String, message: String) {
+        val channelId = "chat_channel"
+        val notificationId = System.currentTimeMillis().toInt()
+
+        val intent = Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
+            // Jeśli chcesz przekazać dane, dodaj je tu
+        }
+        val pendingIntent = PendingIntent.getActivity(
+            this, 0, intent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+
+        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+
+        // Dla Androida 8+ potrzebny kanał
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val channel = NotificationChannel(
+                channelId,
+                "Wiadomości czatu",
+                NotificationManager.IMPORTANCE_HIGH
+            ).apply {
+                description = "Powiadomienia o nowych wiadomościach"
+            }
+            notificationManager.createNotificationChannel(channel)
+        }
+
+        val builder = NotificationCompat.Builder(this, channelId)
+            .setSmallIcon(R.drawable.android_logo)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setAutoCancel(true)
+            .setContentIntent(pendingIntent)
+
+        notificationManager.notify(notificationId, builder.build())
+    }
+}
+
+fun enableNotifications(tokenManager: TokenManager) {
+    FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
+        if (task.isSuccessful) {
+            val token = task.result
+            Log.d("FCM", "Token: $token")
+            val api = RetrofitClient.getInstance(tokenManager)
+            val call = api.updateFcmToken(FcmTokenRequest(token))
+
+            call.enqueue(object : Callback<Void> {
+                override fun onResponse(call: Call<Void>, response: Response<Void>) {
+                    if (response.isSuccessful) {
+                        Log.d("FCM", "Token FCM wysłany pomyślnie")
+                    } else {
+                        Log.e("FCM", "Nie udało się zarejestrować tokena FCM: ${response.code()}")
+                    }
+                }
+
+                override fun onFailure(call: Call<Void>, t: Throwable) {
+                    Log.e("FCM", "Błąd sieci przy wysyłaniu tokena FCM: ${t.message}")
+                }
+            })
+        }
+    }
+}
 
 suspend fun fetchLiveKitToken(token: String?): String? {
     val client = OkHttpClient()
@@ -59,19 +149,25 @@ suspend fun fetchLiveKitToken(token: String?): String? {
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        WindowCompat.setDecorFitsSystemWindows(window, false)
 
         val tokenManager = TokenManager(this)
 
         setContent {
             val navController = rememberNavController()
-            val savedToken = tokenManager.getToken()
+            val rememberMe = tokenManager.getRemember()
             val context = LocalContext.current
-
-            LaunchedEffect(savedToken) {
-                if (savedToken == null) {
-                    navController.navigate("login") {
-                        popUpTo("friends") { inclusive = true }
+            LaunchedEffect(rememberMe) {
+                if (!rememberMe) {
+                    navController.navigate("login")
+                } else {
+                    val credentials = tokenManager.decryptCredentials()
+                    AuthViewModel(tokenManager, true).login(credentials.first, credentials.second, true) { success, access, refresh ->
+                        if (success && access != null && refresh != null) {
+                            navController.navigate("friends")
+                            WebSocketManager.initialize(access)
+                            tokenManager.saveTokens(access, refresh)
+                            enableNotifications(tokenManager)
+                        }
                     }
                 }
                 startTokenRefreshLoop(              // Rozpoczęcie pętli odświeżania co 5 minut
@@ -80,16 +176,25 @@ class MainActivity : ComponentActivity() {
                 )
             }
 
-            NavHost(navController = navController, startDestination = "login") {
+            NavHost(navController = navController, startDestination = "loading") {
+                composable("loading") {
+                    LoadingScreen()
+                }
                 composable("login") {
                     LoginScreen(
-                        viewModel = AuthViewModel(tokenManager),
+                        viewModel = AuthViewModel(tokenManager, rememberMe),
                         onLoginSuccess = { (access, refresh) ->
-                            Log.d("AuthInterceptor", "Refresh. Token: $access")
+                            WebSocketManager.initialize(access)
                             tokenManager.saveTokens(access, refresh)
                             navController.navigate("friends") {
                                 popUpTo("login") { inclusive = true }
                             }
+                            WindowCompat.setDecorFitsSystemWindows(window, false)
+                            enableNotifications(tokenManager)
+                        },
+                        onRememberLogin = { (username, password) ->
+                            tokenManager.clearLoginData()
+                            tokenManager.encryptAndSave(username, password, true)
                         },
                         onNavigateToRegister = {
                             navController.navigate("register")
@@ -98,7 +203,7 @@ class MainActivity : ComponentActivity() {
                 }
                 composable("register") {
                     RegisterScreen(
-                        viewModel = AuthViewModel(tokenManager),
+                        viewModel = AuthViewModel(tokenManager, false),
                         onRegisterSuccess = {
                             navController.navigate("register") {
                                 popUpTo("login") { inclusive = true }
@@ -141,9 +246,7 @@ class MainActivity : ComponentActivity() {
                     LaunchedEffect(Unit) {
                         token = fetchLiveKitToken(tokenManager.getToken())
                         if (token == null) {
-                            navController.navigate("login") {
-                                popUpTo("login") { inclusive = true }
-                            }
+                            navController.navigate("login")
                         }
                     }
                     token?.let {

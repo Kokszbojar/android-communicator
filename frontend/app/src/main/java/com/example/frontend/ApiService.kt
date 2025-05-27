@@ -3,11 +3,12 @@ package com.example.frontend
 import retrofit2.http.*
 import retrofit2.Call
 
+data class FcmTokenRequest(val token: String)
 data class TokenRequest(val refresh: String)
 data class AuthRequest(val username: String, val password: String)
 data class AuthResponse(val access: String, val refresh: String)
 
-data class FriendDto(val id: Int, val username: String?, val lastMessage: String?, val timestamp: String?)
+data class FriendDto(val id: Int, val username: String?, val lastMessage: String?, val timestamp: String?, var hasNewMessage: Boolean = false)
 data class UserSearchResultDto(val id: Int, val username: String, val requestSent: Boolean, val requestReceived: Boolean)
 data class FriendRequestDto(val id: Int, val from_user: String, val friend: String, val status: String)
 data class FriendRequestAction(val action: String)
@@ -54,4 +55,7 @@ interface ApiService {
     fun removeFriend(
         @Path("id") friendId: Int,
     ): Call<Void>
+
+    @POST("api/fcm/update/")
+    fun updateFcmToken(@Body tokenRequest: FcmTokenRequest): Call<Void>
 }

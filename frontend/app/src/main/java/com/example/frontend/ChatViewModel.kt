@@ -53,12 +53,32 @@ class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
     var currentOffset = mutableStateOf(0)
     var canLoadMore = mutableStateOf(true)
 
-    private val client = OkHttpClient()
-    private lateinit var webSocket: WebSocket
+    private var onDisposeListener: ((JSONObject) -> Unit)? = null
 
     init {
-        connectWebSocket()
         loadMessagesForUser(userId)
+
+        // Reaguj na nowe wiadomości z WebSocketa
+        val listener: (JSONObject) -> Unit = { json ->
+            if (json.getString("type") == "chat_message") {
+                val fromUser = json.getString("sender_name")
+                if (friendName.value == fromUser) {
+                    messages.add(
+                        Message(
+                            text = json.getString("content"),
+                            fromUser = fromUser,
+                            timestamp = json.getString("timestamp"),
+                            fileUrl = json.getString("file_url"),
+                            fileType = json.getString("file_type")
+                        )
+                    )
+                }
+            }
+        }
+
+        WebSocketManager.addListener(listener)
+        // Zapamiętaj listener żeby usunąć
+        onDisposeListener = listener
     }
 
     fun onMessageChange(newMessage: String) {
@@ -73,7 +93,7 @@ class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
             json.put("to", userId)
             json.put("message", message)
 
-            webSocket.send(json.toString())
+            WebSocketManager.send(json)
             messages.add(Message(text=message, fromUser="", timestamp=""))
             currentMessage.value = ""
         }
@@ -89,7 +109,7 @@ class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
             put("file_type", fileType)
         }
 
-        webSocket.send(json.toString())
+        WebSocketManager.send(json)
         messages.add(
             Message(
                 text = "",
@@ -105,46 +125,6 @@ class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
         val bytes = file.readBytes()
         val base64 = Base64.encodeToString(bytes, Base64.NO_WRAP)
         return "data:$mimeType;base64,$base64"
-    }
-
-    private fun connectWebSocket() {
-        val request = Request.Builder()
-            .url("ws://192.168.0.130:8000/ws/chat/?token=$token") // Emulator -> host
-            .build()
-
-        webSocket = client.newWebSocket(request, object : WebSocketListener() {
-            override fun onMessage(webSocket: WebSocket, text: String) {
-                val json = JSONObject(text)
-                when (json.getString("type")) {
-                    "chat_message" -> {
-                        val content = json.getString("content")
-                        val fromUser = json.getString("sender_name")
-                        val timestamp = json.getString("timestamp")
-                        val fileUrl = json.getString("file_url")
-                        val fileType = json.getString("file_type")
-                        messages.add(
-                            Message(
-                                text = content,
-                                fromUser = fromUser,
-                                timestamp = timestamp,
-                                fileUrl = fileUrl,
-                                fileType = fileType
-                            )
-                        )
-                    }
-                }
-
-            }
-
-            override fun onFailure(webSocket: WebSocket, t: Throwable, response: Response?) {
-                messages.add(Message("Błąd połączenia: ${t.localizedMessage}", "System", ""))
-            }
-        })
-    }
-
-    override fun onCleared() {
-        super.onCleared()
-        webSocket.close(1000, "Koniec")
     }
 
     fun loadMessagesForUser(

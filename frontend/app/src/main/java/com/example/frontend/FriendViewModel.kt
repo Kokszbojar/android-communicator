@@ -23,6 +23,31 @@ class FriendViewModel(private val tokenManager: TokenManager) : ViewModel() {
     init {
         fetchFriends()
         fetchRequests()
+        listenForMessages()
+    }
+
+    private fun listenForMessages() {
+        WebSocketManager.addListener { json ->
+            if (json.getString("type") == "chat_message") {
+                val fromUser = json.getString("sender_name")
+                val message = json.optString("content")
+                val timestamp = json.optString("timestamp")
+                updateFriendWithMessage(fromUser, message, timestamp)
+            }
+        }
+    }
+
+    private fun updateFriendWithMessage(senderName: String, message: String, timestamp: String) {
+        val index = friends.indexOfFirst { it.username == senderName }
+        if (index != -1) {
+            val updatedFriend = friends[index].copy(
+                lastMessage = message,
+                timestamp = timestamp,
+                hasNewMessage = true
+            )
+            friends.removeAt(index)
+            friends.add(0, updatedFriend) // przesuwa na górę
+        }
     }
 
     fun fetchFriends() {
