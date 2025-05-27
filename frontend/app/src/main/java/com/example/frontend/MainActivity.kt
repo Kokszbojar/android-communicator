@@ -12,10 +12,7 @@ import android.os.Looper
 import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -24,12 +21,13 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.app.NotificationCompat
 import androidx.core.view.WindowCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.example.frontend.ChatScreen
-import com.example.frontend.CallScreen
-import com.example.frontend.ChatViewModel
 import com.google.firebase.messaging.FirebaseMessaging
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
@@ -146,10 +144,10 @@ suspend fun fetchLiveKitToken(token: String?): String? {
     }
 }
 
-class MainActivity : ComponentActivity() {
+class MainActivity : ComponentActivity(), LifecycleEventObserver {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
+        ProcessLifecycleOwner.get().lifecycle.addObserver(this)
         val tokenManager = TokenManager(this)
 
         setContent {
@@ -158,22 +156,25 @@ class MainActivity : ComponentActivity() {
             val context = LocalContext.current
             LaunchedEffect(rememberMe) {
                 if (!rememberMe) {
-                    navController.navigate("login")
+                    navController.navigate("login") {
+                        popUpTo("loading") { inclusive = true }
+                    }
                 } else {
                     val credentials = tokenManager.decryptCredentials()
                     AuthViewModel(tokenManager, true).login(credentials.first, credentials.second, true) { success, access, refresh ->
                         if (success && access != null && refresh != null) {
-                            navController.navigate("friends")
                             WebSocketManager.initialize(access)
                             tokenManager.saveTokens(access, refresh)
                             enableNotifications(tokenManager)
+                            startTokenRefreshLoop(              // Rozpoczęcie pętli odświeżania co 5 minut
+                                tokenManager
+                            )
+                            navController.navigate("friends") {
+                                popUpTo("loading") { inclusive = true }
+                            }
                         }
                     }
                 }
-                startTokenRefreshLoop(              // Rozpoczęcie pętli odświeżania co 5 minut
-                    context,
-                    tokenManager
-                )
             }
 
             NavHost(navController = navController, startDestination = "loading") {
@@ -186,11 +187,12 @@ class MainActivity : ComponentActivity() {
                         onLoginSuccess = { (access, refresh) ->
                             WebSocketManager.initialize(access)
                             tokenManager.saveTokens(access, refresh)
-                            navController.navigate("friends") {
-                                popUpTo("login") { inclusive = true }
-                            }
                             WindowCompat.setDecorFitsSystemWindows(window, false)
                             enableNotifications(tokenManager)
+                            startTokenRefreshLoop(
+                                tokenManager
+                            )
+                            navController.navigate("friends")
                         },
                         onRememberLogin = { (username, password) ->
                             tokenManager.clearLoginData()
@@ -220,6 +222,12 @@ class MainActivity : ComponentActivity() {
                         onNavigateToChat = { userId ->
                             navController.navigate("chat/$userId")
                         },
+                        onLogout = {
+                            tokenManager.clearLoginData()
+                            navController.navigate("login") {
+                                popUpTo("friends") { inclusive = true }
+                            }
+                        }
                     )
                 }
                 composable("chat/{userId}") { backStackEntry ->
@@ -264,7 +272,6 @@ class MainActivity : ComponentActivity() {
     }
 
     fun refreshToken(
-        context: android.content.Context,
         tokenManager: TokenManager,
         onResult: (Boolean) -> Unit
     ) {
@@ -303,13 +310,12 @@ class MainActivity : ComponentActivity() {
     }
 
     fun startTokenRefreshLoop(
-        context: android.content.Context,
         tokenManager: TokenManager
     ) {
         val handler = Handler(Looper.getMainLooper())
         val refreshRunnable = object : Runnable {
             override fun run() {
-                refreshToken(context, tokenManager) { success ->
+                refreshToken(tokenManager) { success ->
                     if (!success) {
                         println("Nie udało się odświeżyć tokena.")
                     }
@@ -318,6 +324,25 @@ class MainActivity : ComponentActivity() {
             }
         }
         handler.post(refreshRunnable)
+    }
+
+    override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
+        when (event) {
+            Lifecycle.Event.ON_START -> {
+                // App wróciła na pierwszy plan – odśwież połączenie
+                val token = TokenManager(this).getToken()
+                if (token != null) {
+                    WebSocketManager.initialize(token)
+                }
+            }
+
+            Lifecycle.Event.ON_STOP -> {
+                // App poszła w tło – rozłącz WS, jeśli chcesz
+                WebSocketManager.close()
+            }
+
+            else -> Unit
+        }
     }
 }
 

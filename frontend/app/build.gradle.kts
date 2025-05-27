@@ -60,6 +60,7 @@ dependencies {
     implementation("androidx.compose.ui:ui:1.8.1")
     implementation("androidx.compose.material3:material3:1.3.2")
     implementation("androidx.compose.material:material-icons-extended:1.5.4")
+    implementation("androidx.lifecycle:lifecycle-process:2.9.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.9.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.9.0")
     implementation("io.coil-kt:coil-compose:2.5.0")

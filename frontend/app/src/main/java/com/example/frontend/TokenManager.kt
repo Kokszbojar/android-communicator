@@ -87,6 +87,5 @@ class TokenManager(context: Context) {
 
     fun clearLoginData() {
         loginPrefs.edit().clear().apply()
-        prefs.edit().clear().apply()
     }
 }

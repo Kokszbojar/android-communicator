@@ -26,7 +26,6 @@ class JWTAuthMiddleware(BaseMiddleware):
         if token:
             try:
                 validated_token = JWTAuthentication().get_validated_token(token)
-                print(validated_token)
                 scope["user"] = await get_user(validated_token)
             except InvalidToken:
                 scope["user"] = AnonymousUser()

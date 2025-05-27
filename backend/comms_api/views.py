@@ -93,7 +93,6 @@ def livekit_token_view(request):
             can_subscribe=True,
             # can_publish_sources=["camera", "microphone"]
         )).to_jwt()
-    print(token)
     return Response({"token": token})
 
 

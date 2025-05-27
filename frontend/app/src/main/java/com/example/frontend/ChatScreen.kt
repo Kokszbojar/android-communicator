@@ -20,6 +20,7 @@ import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Phone
 import androidx.compose.material.icons.filled.Send
 import androidx.compose.material.icons.filled.AttachFile
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -84,25 +85,36 @@ fun ChatScreen(viewModel: ChatViewModel, context: Context, onNavigateToCall: () 
                     .padding(8.dp),
                 reverseLayout = true
             ) {
+                items(messages.reversed()) { ChatBubble(friendName, context, it) }
                 item {
                     if (viewModel.canLoadMore.value) {
-                        Button(
-                            onClick = {
-                                viewModel.currentOffset.value += 50
-                                viewModel.loadMessagesForUser(
-                                    selectedUserId,
-                                    offset = viewModel.currentOffset.value,
-                                    appendToTop = true
-                                )
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
+                        Box(
+                            modifier = Modifier.fillMaxWidth(),
+                            contentAlignment = Alignment.Center
                         ) {
-                            Text("Wczytaj starsze", color = Color.White, fontSize = 12.sp)
+                            IconButton(
+                                onClick = {
+                                    viewModel.currentOffset.value += 50
+                                    viewModel.loadMessagesForUser(
+                                        selectedUserId,
+                                        offset = viewModel.currentOffset.value,
+                                        appendToTop = true
+                                    )
+                                },
+                                modifier = Modifier
+                                    .padding(24.dp)
+                                    .size(52.dp)
+                                    .background(Color(0xFFBB86FC), shape = CircleShape)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.History,
+                                    contentDescription = "Wczytaj",
+                                    tint = Color.White
+                                )
+                            }
                         }
                     }
                 }
-
-                items(messages.reversed()) { ChatBubble(friendName, context, it) }
             }
 
             // Pole do wpisywania wiadomości
@@ -137,8 +149,8 @@ fun ChatScreen(viewModel: ChatViewModel, context: Context, onNavigateToCall: () 
                 IconButton(
                     onClick = { filePickerLauncher.launch("*/*") },
                     modifier = Modifier
-                        .padding(end = 8.dp)
-                        .size(48.dp)
+                        .padding(start = 8.dp)
+                        .size(52.dp)
                         .background(Color.Gray, CircleShape)
                 ) {
                     Icon(
@@ -224,9 +236,13 @@ fun ChatBubble(friendName: String, context: Context, message: Message) {
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                val intent = Intent(Intent.ACTION_VIEW, url.toUri())
-                                intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                context.startActivity(intent)
+                                val request = DownloadManager.Request(url.toUri())
+                                    .setTitle("Image")
+                                    .setDestinationInExternalPublicDir(Environment.DIRECTORY_DOWNLOADS, "komunikator_obraz.jpg")
+                                    .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
+
+                                val dm = context.getSystemService(Context.DOWNLOAD_SERVICE) as DownloadManager
+                                dm.enqueue(request)
                             }
                     )
                     "audio" -> Text(

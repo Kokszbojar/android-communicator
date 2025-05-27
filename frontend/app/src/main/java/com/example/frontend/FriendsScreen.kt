@@ -7,6 +7,8 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -20,7 +22,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.sp
 
 @Composable
-fun FriendsScreen(viewModel: FriendViewModel, onNavigateToChat: (Int) -> Unit) {
+fun FriendsScreen(viewModel: FriendViewModel, onNavigateToChat: (Int) -> Unit, onLogout: () -> Unit) {
     val friends = viewModel.friends
     val searchResults = viewModel.searchResults
     val receivedRequests = viewModel.receivedRequests
@@ -40,14 +42,23 @@ fun FriendsScreen(viewModel: FriendViewModel, onNavigateToChat: (Int) -> Unit) {
                 .padding(insets)
                 .background(Color(0xFF121212)),
             topBar = {
-                Column(modifier = Modifier.background(Color(0xFF1A1A1A))) {
-                    Text(
-                        "Twoje kontakty",
-                        color = Color.White,
-                        fontSize = 22.sp,
-                        fontWeight = FontWeight.Bold,
-                        modifier = Modifier.padding(16.dp)
-                    )
+                Column(modifier = Modifier.background(Color(0xFF1A1A1A)).fillMaxWidth()) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth().padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            "Twoje kontakty",
+                            color = Color.White,
+                            fontSize = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                        IconButton(onClick = onLogout) {
+                            Icon(Icons.Default.Logout, contentDescription = "Wyloguj", tint = Color.White)
+                        }
+                    }
                     TabRow(
                         selectedTabIndex = selectedTab,
                         containerColor = Color(0xFF1E1E1E),
