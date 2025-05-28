@@ -11,7 +11,6 @@ data class AuthResponse(val access: String, val refresh: String)
 data class FriendDto(val id: Int, val username: String?, val lastMessage: String?, val timestamp: String?, var hasNewMessage: Boolean = false)
 data class UserSearchResultDto(val id: Int, val username: String, val requestSent: Boolean, val requestReceived: Boolean)
 data class FriendRequestDto(val id: Int, val from_user: String, val friend: String, val status: String)
-data class FriendRequestAction(val action: String)
 data class FriendRequestBody(val to_user: Int)
 
 data class FriendRequestsResponse(

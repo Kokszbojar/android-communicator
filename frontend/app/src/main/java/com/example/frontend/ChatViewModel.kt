@@ -180,7 +180,8 @@ class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
 }
 
 class CallViewModel(
-    private val context: Context
+    private val context: Context,
+    var userId: Int
 ) : ViewModel() {
 
     private val _room = MutableStateFlow<Room?>(null)
@@ -188,6 +189,7 @@ class CallViewModel(
 
     private val _videoTrack = MutableStateFlow<VideoTrack?>(null)
     val videoTrack: StateFlow<VideoTrack?> = _videoTrack
+    val callStatus = MutableStateFlow("pending")
 
     private val liveKitRoom: Room = LiveKit.create(context)
 
@@ -231,13 +233,22 @@ class CallViewModel(
                         val track = event.track
                         if (track is VideoTrack) {
                             _videoTrack.value = track
+                            callStatus.value = "connected"
                         }
+                    }
+                    is RoomEvent.TrackUnsubscribed -> {
+                        callStatus.value = "disconnected"
                     }
 
                     else -> {}
                 }
             }
         }
+    }
+
+    fun disconnect() {
+        liveKitRoom.disconnect()
+        liveKitRoom.release()
     }
 
     override fun onCleared() {

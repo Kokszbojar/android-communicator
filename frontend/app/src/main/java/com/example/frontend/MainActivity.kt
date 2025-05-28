@@ -239,7 +239,7 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                             viewModel,
                             context = context,
                             onNavigateToCall = {
-                                navController.navigate("call")
+                                navController.navigate("call/$userId")
                             },
                             onNavigateToFriends = {
                                 navController.navigate("friends")
@@ -247,24 +247,30 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                         )
                     }
                 }
-                composable("call") {
-                    val viewModel = remember { CallViewModel(context) }
-                    var token by remember { mutableStateOf<String?>(null) }
+                composable("call/{userId}") { backStackEntry ->
+                    val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull()
+                    if (userId != null) {
+                        val viewModel = remember { CallViewModel(context, userId) }
+                        var token by remember { mutableStateOf<String?>(null) }
 
-                    LaunchedEffect(Unit) {
-                        token = fetchLiveKitToken(tokenManager.getToken())
-                        if (token == null) {
-                            navController.navigate("login")
+                        LaunchedEffect(Unit) {
+                            token = fetchLiveKitToken(tokenManager.getToken())
+                            if (token == null) {
+                                navController.navigate("login")
+                            }
                         }
-                    }
-                    token?.let {
-                        CallScreen(
-                            viewModel = viewModel,
-                            serverUrl = "ws://192.168.0.130:7880/",
-                            token = it
-                        )
-                    } ?: run {
-                        CircularProgressIndicator()
+                        token?.let {
+                            CallScreen(
+                                viewModel = viewModel,
+                                serverUrl = "ws://192.168.0.130:7880/",
+                                token = it,
+                                onDisconnect = { userId ->
+                                    navController.navigate("chat/$userId")
+                                }
+                            )
+                        } ?: run {
+                            CircularProgressIndicator()
+                        }
                     }
                 }
             }
