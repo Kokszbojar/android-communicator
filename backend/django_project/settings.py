@@ -33,7 +33,6 @@ ALLOWED_HOSTS = ['*']
 INSTALLED_APPS = [
     'daphne',
     'comms_api',
-    'auth_api',
     'rest_framework',
     'rest_framework_simplejwt',
     'django.contrib.admin',
