@@ -8,7 +8,7 @@ import retrofit2.Callback
 import retrofit2.Response
 import android.util.Log
 
-class AuthViewModel(private val tokenManager: TokenManager, var rememberMe: Boolean) : ViewModel() {
+class AuthViewModel(var rememberMe: Boolean) : ViewModel() {
 
     fun register(username: String, password: String, onResult: (Boolean) -> Unit) {
         val call = RetrofitClient.instance.register(AuthRequest(username, password))
@@ -24,20 +24,20 @@ class AuthViewModel(private val tokenManager: TokenManager, var rememberMe: Bool
         })
     }
 
-    fun login(username: String, password: String, remember: Boolean, onResult: (Boolean, String?, String?) -> Unit) {
+    fun login(username: String, password: String, remember: Boolean, onResult: (Boolean, String?, String?, Int?) -> Unit) {
         val call = RetrofitClient.instance.login(AuthRequest(username, password))
         call.enqueue(object : Callback<AuthResponse> {
             override fun onResponse(call: Call<AuthResponse>, response: Response<AuthResponse>) {
                 if (response.isSuccessful) {
-                    onResult(true, response.body()?.access, response.body()?.refresh)
+                    onResult(true, response.body()?.access, response.body()?.refresh, response.body()?.userId)
                 } else {
-                    onResult(false, null, null)
+                    onResult(false, null, null, null)
                 }
             }
 
             override fun onFailure(call: Call<AuthResponse>, t: Throwable) {
                 Log.e("Auth", "Błąd logowania", t)
-                onResult(false, null, null)
+                onResult(false, null, null, null)
             }
         })
     }

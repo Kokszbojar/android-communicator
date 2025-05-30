@@ -1,11 +1,8 @@
 package com.example.frontend
 
-import android.app.NotificationChannel
-import android.app.NotificationManager
-import android.app.PendingIntent
+import android.app.ActivityManager
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -19,7 +16,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import androidx.core.app.NotificationCompat
 import androidx.core.view.WindowCompat
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -28,9 +24,6 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
-import com.google.firebase.messaging.FirebaseMessaging
-import com.google.firebase.messaging.FirebaseMessagingService
-import com.google.firebase.messaging.RemoteMessage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -41,91 +34,11 @@ import retrofit2.Callback
 import retrofit2.Response
 import java.io.IOException
 
-class MyFirebaseMessagingService : FirebaseMessagingService() {
-    override fun onNewToken(token: String) {
-        super.onNewToken(token)
-        Log.d("FCM", "Nowy token: $token")
-    }
-
-    override fun onMessageReceived(remoteMessage: RemoteMessage) {
-        super.onMessageReceived(remoteMessage)
-        Log.d("FCM", "Wiadomość: ${remoteMessage.data}")
-
-        val title = remoteMessage.notification?.title ?: "Nowa wiadomość"
-        val body = remoteMessage.notification?.body ?: "Masz nową wiadomość"
-
-        showNotification(title, body)
-    }
-
-    private fun showNotification(title: String, message: String) {
-        val channelId = "chat_channel"
-        val notificationId = System.currentTimeMillis().toInt()
-
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
-            // Jeśli chcesz przekazać dane, dodaj je tu
-        }
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
-        )
-
-        val notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-
-        // Dla Androida 8+ potrzebny kanał
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(
-                channelId,
-                "Wiadomości czatu",
-                NotificationManager.IMPORTANCE_HIGH
-            ).apply {
-                description = "Powiadomienia o nowych wiadomościach"
-            }
-            notificationManager.createNotificationChannel(channel)
-        }
-
-        val builder = NotificationCompat.Builder(this, channelId)
-            .setSmallIcon(R.drawable.android_logo)
-            .setContentTitle(title)
-            .setContentText(message)
-            .setPriority(NotificationCompat.PRIORITY_HIGH)
-            .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
-
-        notificationManager.notify(notificationId, builder.build())
-    }
-}
-
-fun enableNotifications(tokenManager: TokenManager) {
-    FirebaseMessaging.getInstance().token.addOnCompleteListener { task ->
-        if (task.isSuccessful) {
-            val token = task.result
-            Log.d("FCM", "Token: $token")
-            val api = RetrofitClient.getInstance(tokenManager)
-            val call = api.updateFcmToken(FcmTokenRequest(token))
-
-            call.enqueue(object : Callback<Void> {
-                override fun onResponse(call: Call<Void>, response: Response<Void>) {
-                    if (response.isSuccessful) {
-                        Log.d("FCM", "Token FCM wysłany pomyślnie")
-                    } else {
-                        Log.e("FCM", "Nie udało się zarejestrować tokena FCM: ${response.code()}")
-                    }
-                }
-
-                override fun onFailure(call: Call<Void>, t: Throwable) {
-                    Log.e("FCM", "Błąd sieci przy wysyłaniu tokena FCM: ${t.message}")
-                }
-            })
-        }
-    }
-}
-
-suspend fun fetchLiveKitToken(token: String?): String? {
+suspend fun fetchLiveKitToken(token: String?, userId: Int): String? {
     val client = OkHttpClient()
 
     val request = Request.Builder()
-        .url("http://192.168.0.130:8000/api/livekit-token/?room=room_1")
+        .url("http://192.168.0.130:8000/api/livekit-token/?room=$userId")
         .addHeader("Authorization", "Bearer $token")
         .build()
 
@@ -150,27 +63,48 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
         val tokenManager = TokenManager(this)
 
+        val navigateToChat = intent?.getBooleanExtra("navigate_to_chat", false) ?: false
+        val notificationUserId = intent?.getIntExtra("userId", -1) ?: -1
+        val navigateToCall= intent?.getBooleanExtra("navigate_to_call", false) ?: false
+        val notificationRoomId = intent?.getIntExtra("roomId", -1) ?: -1
+
         setContent {
             val navController = rememberNavController()
+            val alreadyNavigated = remember { mutableStateOf(false) }
             val rememberMe = tokenManager.getRemember()
             val context = LocalContext.current
             LaunchedEffect(rememberMe) {
                 if (!rememberMe) {
                     navController.navigate("login") {
-                        popUpTo("loading") { inclusive = true }
+                        popUpTo("login") { saveState=false }
                     }
                 } else {
                     val credentials = tokenManager.decryptCredentials()
-                    AuthViewModel(tokenManager, true).login(credentials.first, credentials.second, true) { success, access, refresh ->
-                        if (success && access != null && refresh != null) {
+                    AuthViewModel(true).login(credentials.first, credentials.second, true) { success, access, refresh, userId ->
+                        if (success && access != null && refresh != null && userId != null) {
                             WebSocketManager.initialize(access)
                             tokenManager.saveTokens(access, refresh)
-                            enableNotifications(tokenManager)
-                            startTokenRefreshLoop(              // Rozpoczęcie pętli odświeżania co 5 minut
-                                tokenManager
-                            )
-                            navController.navigate("friends") {
-                                popUpTo("loading") { inclusive = true }
+                            startTokenRefreshLoop(tokenManager)
+                            if (!isServiceRunning(context, MqttService::class.java)) {
+                                val intent = Intent(context, MqttService::class.java).apply {
+                                    putExtra("user_id", userId)
+                                }
+                                context.startForegroundService(intent)
+                            }
+                            if (navigateToChat && notificationUserId != -1 && !alreadyNavigated.value) {
+                                navController.navigate("chat/$notificationUserId") {
+                                    popUpTo("friends") { saveState=false }
+                                }
+                                alreadyNavigated.value = true
+                            } else if (navigateToCall && notificationRoomId != -1 && !alreadyNavigated.value) {
+                                navController.navigate("call/$notificationRoomId") {
+                                    popUpTo("friends") { saveState=false }
+                                }
+                                alreadyNavigated.value = true
+                            } else {
+                                navController.navigate("friends") {
+                                    popUpTo("friends") { saveState=false }
+                                }
                             }
                         }
                     }
@@ -183,16 +117,21 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                 }
                 composable("login") {
                     LoginScreen(
-                        viewModel = AuthViewModel(tokenManager, rememberMe),
-                        onLoginSuccess = { (access, refresh) ->
+                        viewModel = AuthViewModel(rememberMe),
+                        onLoginSuccess = { access, refresh, userId ->
                             WebSocketManager.initialize(access)
                             tokenManager.saveTokens(access, refresh)
                             WindowCompat.setDecorFitsSystemWindows(window, false)
-                            enableNotifications(tokenManager)
-                            startTokenRefreshLoop(
-                                tokenManager
-                            )
-                            navController.navigate("friends")
+                            startTokenRefreshLoop(tokenManager)
+                            if (!isServiceRunning(context, MqttService::class.java)) {
+                                val intent = Intent(context, MqttService::class.java).apply {
+                                    putExtra("user_id", userId)
+                                }
+                                context.startForegroundService(intent)
+                            }
+                            navController.navigate("friends") {
+                                popUpTo("friends") { saveState=false }
+                            }
                         },
                         onRememberLogin = { (username, password) ->
                             tokenManager.clearLoginData()
@@ -205,14 +144,16 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                 }
                 composable("register") {
                     RegisterScreen(
-                        viewModel = AuthViewModel(tokenManager, false),
+                        viewModel = AuthViewModel(false),
                         onRegisterSuccess = {
-                            navController.navigate("register") {
-                                popUpTo("login") { inclusive = true }
+                            navController.navigate("login") {
+                                popUpTo("login") { saveState=false }
                             }
                         },
                         onNavigateToLogin = {
-                            navController.popBackStack()
+                            navController.navigate("login") {
+                                    popUpTo("login") { saveState=false }
+                            }
                         }
                     )
                 }
@@ -220,12 +161,16 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                     FriendsScreen(
                         viewModel = FriendViewModel(tokenManager),
                         onNavigateToChat = { userId ->
-                            navController.navigate("chat/$userId")
+                            navController.navigate("chat/$userId") {
+                                popUpTo("friends") { saveState=false }
+                            }
                         },
                         onLogout = {
                             tokenManager.clearLoginData()
+                            val intent = Intent(context, MqttService::class.java)
+                            context.stopService(intent)
                             navController.navigate("login") {
-                                popUpTo("friends") { inclusive = true }
+                                popUpTo(0) { inclusive = true }
                             }
                         }
                     )
@@ -239,7 +184,9 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                             viewModel,
                             context = context,
                             onNavigateToCall = {
-                                navController.navigate("call/$userId")
+                                navController.navigate("call/$userId") {
+                                    popUpTo("friends") { saveState=false }
+                                }
                             },
                             onNavigateToFriends = {
                                 navController.navigate("friends")
@@ -250,13 +197,15 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                 composable("call/{userId}") { backStackEntry ->
                     val userId = backStackEntry.arguments?.getString("userId")?.toIntOrNull()
                     if (userId != null) {
-                        val viewModel = remember { CallViewModel(context, userId) }
+                        val viewModel = remember { CallViewModel(context) }
                         var token by remember { mutableStateOf<String?>(null) }
 
                         LaunchedEffect(Unit) {
-                            token = fetchLiveKitToken(tokenManager.getToken())
+                            token = fetchLiveKitToken(tokenManager.getToken(), userId)
                             if (token == null) {
-                                navController.navigate("login")
+                                navController.navigate("login") {
+                                    popUpTo("login") { saveState=false }
+                                }
                             }
                         }
                         token?.let {
@@ -264,8 +213,10 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                                 viewModel = viewModel,
                                 serverUrl = "ws://192.168.0.130:7880/",
                                 token = it,
-                                onDisconnect = { userId ->
-                                    navController.navigate("chat/$userId")
+                                onDisconnect = {
+                                    navController.navigate("friends") {
+                                        popUpTo("friends") { saveState=false }
+                                    }
                                 }
                             )
                         } ?: run {
@@ -330,6 +281,12 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
             }
         }
         handler.post(refreshRunnable)
+    }
+
+    fun isServiceRunning(context: Context, serviceClass: Class<*>): Boolean {
+        val manager = context.getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        return manager.getRunningServices(Int.MAX_VALUE)
+            .any { it.service.className == serviceClass.name }
     }
 
     override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {

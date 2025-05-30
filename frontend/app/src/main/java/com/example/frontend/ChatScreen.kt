@@ -72,106 +72,116 @@ fun ChatScreen(viewModel: ChatViewModel, context: Context, onNavigateToCall: () 
 
 
     Box(modifier = Modifier.background(Color(0xFF121212)).fillMaxSize()) {
-        Column(modifier = Modifier.fillMaxSize().padding(insets)) {
-            ChatTopBar(
-                friendName = friendName,
-                onCallClick = onNavigateToCall,
-                onBack = onNavigateToFriends
-            )
-            LazyColumn(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxWidth()
-                    .padding(8.dp),
-                reverseLayout = true
-            ) {
-                items(messages.reversed()) { ChatBubble(friendName, context, it) }
-                item {
-                    if (viewModel.canLoadMore.value) {
-                        Box(
-                            modifier = Modifier.fillMaxWidth(),
-                            contentAlignment = Alignment.Center
-                        ) {
-                            IconButton(
-                                onClick = {
-                                    viewModel.currentOffset.value += 50
-                                    viewModel.loadMessagesForUser(
-                                        selectedUserId,
-                                        offset = viewModel.currentOffset.value,
-                                        appendToTop = true
-                                    )
-                                },
-                                modifier = Modifier
-                                    .padding(24.dp)
-                                    .size(52.dp)
-                                    .background(Color(0xFFBB86FC), shape = CircleShape)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.History,
-                                    contentDescription = "Wczytaj",
-                                    tint = Color.White
-                                )
-                            }
-                        }
+        Scaffold(
+            containerColor = Color(0xFF1E1E1E),
+            modifier = Modifier.padding(insets),
+            topBar = {
+                ChatTopBar(
+                    friendName = friendName,
+                    onCallClick = onNavigateToCall,
+                    onBack = onNavigateToFriends
+                )
+            },
+            bottomBar = {
+                // Pole do wpisywania wiadomości
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(Color(0xFF1E1E1E))
+                        .padding(8.dp)
+                        .consumeWindowInsets(insets)
+                        .imePadding(),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    TextField(
+                        value = currentMessage,
+                        onValueChange = viewModel::onMessageChange,
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(60.dp),
+                        colors = TextFieldDefaults.colors(
+                            unfocusedContainerColor = Color(0xFF2C2C2C),
+                            focusedContainerColor = Color(0xFF2C2C2C),
+                            focusedTextColor = Color.White,
+                            unfocusedTextColor = Color.White,
+                            cursorColor = Color.White,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent
+                        ),
+                        placeholder = { Text("Wpisz wiadomość...", color = Color.Gray) },
+                        shape = RoundedCornerShape(24.dp),
+                        singleLine = true,
+                        textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
+                    )
+
+                    IconButton(
+                        onClick = { filePickerLauncher.launch("*/*") },
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .size(52.dp)
+                            .background(Color.Gray, CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.AttachFile,
+                            contentDescription = "Dołącz plik",
+                            tint = Color.White
+                        )
+                    }
+
+                    IconButton(
+                        onClick = { viewModel.sendMessage() },
+                        modifier = Modifier
+                            .padding(start = 8.dp)
+                            .size(52.dp)
+                            .background(Color(0xFFBB86FC), shape = CircleShape)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Send,
+                            contentDescription = "Wyślij",
+                            tint = Color.White
+                        )
                     }
                 }
             }
-
-            // Pole do wpisywania wiadomości
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(Color(0xFF1E1E1E))
-                    .padding(8.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                TextField(
-                    value = currentMessage,
-                    onValueChange = viewModel::onMessageChange,
+        ) { padding ->
+            Column(modifier = Modifier.fillMaxSize().padding(padding)) {
+                LazyColumn(
                     modifier = Modifier
                         .weight(1f)
-                        .height(60.dp),
-                    colors = TextFieldDefaults.colors(
-                        unfocusedContainerColor = Color(0xFF2C2C2C),
-                        focusedContainerColor = Color(0xFF2C2C2C),
-                        focusedTextColor = Color.White,
-                        unfocusedTextColor = Color.White,
-                        cursorColor = Color.White,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent
-                    ),
-                    placeholder = { Text("Wpisz wiadomość...", color = Color.Gray) },
-                    shape = RoundedCornerShape(24.dp),
-                    singleLine = true,
-                    textStyle = LocalTextStyle.current.copy(fontSize = 14.sp)
-                )
-
-                IconButton(
-                    onClick = { filePickerLauncher.launch("*/*") },
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .size(52.dp)
-                        .background(Color.Gray, CircleShape)
+                        .fillMaxWidth()
+                        .padding(8.dp),
+                    reverseLayout = true
                 ) {
-                    Icon(
-                        imageVector = Icons.Default.AttachFile,
-                        contentDescription = "Dołącz plik",
-                        tint = Color.White
-                    )
-                }
-
-                IconButton(
-                    onClick = { viewModel.sendMessage() },
-                    modifier = Modifier
-                        .padding(start = 8.dp)
-                        .size(52.dp)
-                        .background(Color(0xFFBB86FC), shape = CircleShape)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Send,
-                        contentDescription = "Wyślij",
-                        tint = Color.White
-                    )
+                    items(messages.reversed()) { ChatBubble(friendName, context, it) }
+                    item {
+                        if (viewModel.canLoadMore.value) {
+                            Box(
+                                modifier = Modifier.fillMaxWidth(),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        viewModel.currentOffset.value += 50
+                                        viewModel.loadMessagesForUser(
+                                            selectedUserId,
+                                            offset = viewModel.currentOffset.value,
+                                            appendToTop = true
+                                        )
+                                    },
+                                    modifier = Modifier
+                                        .padding(24.dp)
+                                        .size(52.dp)
+                                        .background(Color(0xFFBB86FC), shape = CircleShape)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.History,
+                                        contentDescription = "Wczytaj",
+                                        tint = Color.White
+                                    )
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }

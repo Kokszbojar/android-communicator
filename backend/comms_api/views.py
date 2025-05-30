@@ -8,6 +8,7 @@ from rest_framework.decorators import api_view, permission_classes
 from django.contrib.auth.models import User
 from django.contrib.auth import authenticate
 from django.db.models import Q
+from comms_api.mqtt_client import send_notification
 from comms_api.models import Message, FriendRequest, UserFCMToken
 from comms_api.serializers import MessageSerializer, FriendRequestSerializer, UserSerializer
 
@@ -32,6 +33,7 @@ class LoginView(APIView):
             return Response({
                 "refresh": str(refresh),
                 "access": str(refresh.access_token),
+                "userId": user.id
             })
         return Response({"error": "Nieprawidłowe dane logowania"}, status=status.HTTP_401_UNAUTHORIZED)
 
@@ -65,10 +67,10 @@ class ChatHistoryView(APIView):
             return Response({"error": "user_id is required"}, status=400)
 
         messages = Message.objects.filter(
-            (Q(sender=user) and Q(recipient__id=other_user_id)) |
-            (Q(sender__id=other_user_id) and Q(recipient=user))
+            Q(sender=user, recipient__id=other_user_id) |
+            Q(sender__id=other_user_id, recipient=user)
         ).order_by("-timestamp")[offset: offset + limit]
-
+        
         serialized = MessageSerializer(messages, many=True, context={"request": request})
         return Response({"data": serialized.data, "friendName": User.objects.get(id=other_user_id).username})
 
@@ -77,7 +79,7 @@ class ChatHistoryView(APIView):
 @permission_classes([IsAuthenticated])
 def livekit_token_view(request):
     user = request.user
-    room_name = request.query_params.get('room', '*')  # np. room=chat_123
+    room_name = request.query_params.get('room', '*')
 
     api_key = "devkey"
     api_secret = "secret"
@@ -93,6 +95,17 @@ def livekit_token_view(request):
             can_subscribe=True,
             # can_publish_sources=["camera", "microphone"]
         )).to_jwt()
+
+    if user.id != int(room_name):
+        send_notification(
+            to_user_id=room_name,
+            payload={
+                "type": "incoming_call",
+                "title": f"{user.username} dzwoni do Ciebie",
+                "body": "Kliknij aby odpowiedzieć na połączenie",
+                "room_id": room_name
+            }
+        )
     return Response({"token": token})
 
 

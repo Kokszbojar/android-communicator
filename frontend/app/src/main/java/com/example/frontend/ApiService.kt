@@ -6,7 +6,7 @@ import retrofit2.Call
 data class FcmTokenRequest(val token: String)
 data class TokenRequest(val refresh: String)
 data class AuthRequest(val username: String, val password: String)
-data class AuthResponse(val access: String, val refresh: String)
+data class AuthResponse(val access: String, val refresh: String, val userId: Int)
 
 data class FriendDto(val id: Int, val username: String?, val lastMessage: String?, val timestamp: String?, var hasNewMessage: Boolean = false)
 data class UserSearchResultDto(val id: Int, val username: String, val requestSent: Boolean, val requestReceived: Boolean)

@@ -1,40 +1,12 @@
 import json
 import base64
-from firebase_admin import messaging
+from comms_api.mqtt_client import send_notification
 from channels.generic.websocket import AsyncWebsocketConsumer
 from asgiref.sync import sync_to_async
 from django.core.files.base import ContentFile
 from django.contrib.auth.models import AnonymousUser, User
 from comms_api.models import Message, Call, UserFCMToken
 from comms_api.serializers import MessageSerializer
-
-
-async def send_fcm_notification(to_user, title, body):
-    try:
-        token_obj = await sync_to_async(UserFCMToken.objects.get)(user=to_user)
-        token = token_obj.token
-        message = messaging.Message(
-            notification=messaging.Notification(
-                title=title,
-                body=body,
-            ),
-            token=token,
-            data={
-                "type": "chat_message",
-                "user_id": str(to_user.id),
-            }
-        )
-        response = messaging.send(message)
-        print(f"FCM response: {response}")
-
-    except UserFCMToken.DoesNotExist:
-        print(f"No FCM token found for user {to_user.id}")
-    except messaging.UnregisteredError:
-        print(f"Token unregistered: {token}")
-        # np. usuń token z bazy
-        await sync_to_async(token_obj.delete)()
-    except Exception as e:
-        print(f"FCM send error: {e}")
 
 
 class ChatConsumer(AsyncWebsocketConsumer):
@@ -60,16 +32,6 @@ class ChatConsumer(AsyncWebsocketConsumer):
 
         if action == "send_message":
             await self.handle_send_message(data)
-        elif action == "webrtc_offer":
-            await self.handle_webrtc_offer(data)
-        elif action == "webrtc_answer":
-            await self.handle_webrtc_answer(data)
-        elif action == "webrtc_ice_candidate":
-            await self.handle_webrtc_ice_candidate(data)
-        elif action == "call_user":
-            await self.handle_call_user(data)
-        elif action == "answer_call":
-            await self.handle_answer_call(data)
 
     async def handle_send_message(self, data):
         from_user = self.user
@@ -108,93 +70,13 @@ class ChatConsumer(AsyncWebsocketConsumer):
             }
         )
 
-        await send_fcm_notification(
-            to_user=to_user,
-            title=f"Nowa wiadomość od {from_user.username}",
-            body=content[:60]  # skróć, jeśli długie
-        )
-
-    async def handle_webrtc_offer(self, data):
-        to_user_id = data["to"]
-        sdp = data["sdp"]
-
-        await self.channel_layer.group_send(
-            f"user_{to_user_id}",
-            {
-                "type": "webrtc.offer",
-                "offer": {
-                    "from": self.user.id,
-                    "sdp": sdp,
-                },
-            }
-        )
-
-    async def handle_webrtc_answer(self, data):
-        to_user_id = data["to"]
-        sdp = data["sdp"]
-
-        await self.channel_layer.group_send(
-            f"user_{to_user_id}",
-            {
-                "type": "webrtc.answer",
-                "answer": {
-                    "from": self.user.id,
-                    "sdp": sdp,
-                },
-            }
-        )
-
-    async def handle_webrtc_ice_candidate(self, data):
-        to_user_id = data["to"]
-        candidate = data["candidate"]
-
-        await self.channel_layer.group_send(
-            f"user_{to_user_id}",
-            {
-                "type": "webrtc.ice_candidate",
-                "ice": {
-                    "from": self.user.id,
-                    "candidate": candidate,
-                },
-            }
-        )
-
-    async def handle_call_user(self, data):
-        callee_id = data["to"]
-        callee = await sync_to_async(User.objects.get)(id=callee_id)
-
-        call = await sync_to_async(Call.objects.create)(
-            caller=self.user,
-            callee=callee,
-        )
-
-        await self.channel_layer.group_send(
-            f"user_{callee_id}",
-            {
-                "type": "call.incoming",
-                "call": {
-                    "caller": self.user.id,
-                    "call_id": call.id,
-                },
-            }
-        )
-
-    async def handle_answer_call(self, data):
-        call_id = data["call_id"]
-        accepted = data["accepted"]
-
-        call = await sync_to_async(Call.objects.get)(id=call_id)
-        call.accepted = accepted
-        await sync_to_async(call.save)()
-
-        await self.channel_layer.group_send(
-            f"user_{call.caller.id}",
-            {
-                "type": "call.answer",
-                "call": {
-                    "accepted": accepted,
-                    "callee": self.user.id,
-                },
+        send_notification(
+            to_user_id=to_user.id,
+            payload={
+                "type": "chat_message",
+                "title": from_user.username,
+                "body": content[:60],
+                "chat_id": from_user.id
             }
         )
 
@@ -202,34 +84,4 @@ class ChatConsumer(AsyncWebsocketConsumer):
         await self.send(text_data=json.dumps({
             "type": "chat_message",
             **event["message"],
-        }))
-
-    async def webrtc_offer(self, event):
-        await self.send(text_data=json.dumps({
-            "type": "webrtc_offer",
-            **event["offer"],
-        }))
-
-    async def webrtc_answer(self, event):
-        await self.send(text_data=json.dumps({
-            "type": "webrtc_answer",
-            **event["answer"],
-        }))
-
-    async def webrtc_ice_candidate(self, event):
-        await self.send(text_data=json.dumps({
-            "type": "webrtc_ice_candidate",
-            **event["ice"],
-        }))
-
-    async def call_incoming(self, event):
-        await self.send(text_data=json.dumps({
-            "type": "incoming_call",
-            **event["call"],
-        }))
-
-    async def call_answer(self, event):
-        await self.send(text_data=json.dumps({
-            "type": "call_answer",
-            **event["call"],
         }))

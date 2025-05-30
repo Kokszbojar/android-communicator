@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.sp
 @Composable
 fun LoginScreen(
     viewModel: AuthViewModel,
-    onLoginSuccess: (Pair<String, String>) -> Unit,
+    onLoginSuccess: (String, String, Int) -> Unit,
     onRememberLogin: (Pair<String, String>) -> Unit,
     onNavigateToRegister: () -> Unit
 ) {
@@ -103,9 +103,9 @@ fun LoginScreen(
 
             Button(
                 onClick = {
-                    viewModel.login(username, password, rememberMe) { success, access, refresh ->
-                        if (success && access != null && refresh != null) {
-                            onLoginSuccess(Pair(access, refresh))
+                    viewModel.login(username, password, rememberMe) { success, access, refresh, userId ->
+                        if (success && access != null && refresh != null && userId != null) {
+                            onLoginSuccess(access, refresh, userId)
                             if (rememberMe) {
                                 onRememberLogin(Pair(username, password))
                             }

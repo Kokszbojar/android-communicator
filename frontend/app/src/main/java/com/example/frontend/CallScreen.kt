@@ -32,7 +32,7 @@ fun CallScreen(
     token: String,
     friendName: String = "Znajomy",
     friendAvatar: String = "",
-    onDisconnect: (Int) -> Unit
+    onDisconnect: () -> Unit
 ) {
     val context = LocalContext.current
     val videoTrack by viewModel.videoTrack.collectAsState()
@@ -79,7 +79,7 @@ fun CallScreen(
                     Button(
                         onClick = {
                             viewModel.disconnect()
-                            onDisconnect(viewModel.userId)
+                            onDisconnect()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
                     ) {
@@ -131,7 +131,7 @@ fun CallScreen(
                     Button(
                         onClick = {
                             viewModel.disconnect()
-                            onDisconnect(viewModel.userId)
+                            onDisconnect()
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = Color.Red)
                     ) {
@@ -179,7 +179,7 @@ fun CallScreen(
                 Button(
                     onClick = {
                         viewModel.disconnect()
-                        onDisconnect(viewModel.userId)
+                        onDisconnect()
                     },
                     colors = ButtonDefaults.buttonColors(containerColor = Color.DarkGray)
                 ) {

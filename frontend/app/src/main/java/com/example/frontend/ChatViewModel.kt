@@ -1,23 +1,11 @@
 package com.example.frontend
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.os.Bundle
-import android.widget.Toast
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
-import androidx.lifecycle.lifecycleScope
 import android.content.Context
 import android.os.Handler
 import android.os.Looper
 import android.util.Base64
 import android.util.Log
-import android.view.View
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.runtime.*
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.livekit.android.LiveKit
@@ -27,18 +15,13 @@ import io.livekit.android.renderer.SurfaceViewRenderer
 import io.livekit.android.room.Room
 import io.livekit.android.room.track.Track
 import io.livekit.android.room.track.VideoTrack
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.launch
-import livekit.org.webrtc.EglBase
 import okhttp3.*
 import org.json.JSONObject
-import org.json.JSONArray
 import java.io.File
 import java.io.IOException
-import java.net.URLConnection
 
 class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
 
@@ -50,7 +33,7 @@ class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
     var currentMessage = mutableStateOf("")
         private set
 
-    var currentOffset = mutableStateOf(0)
+    var currentOffset = mutableIntStateOf(0)
     var canLoadMore = mutableStateOf(true)
 
     private var onDisposeListener: ((JSONObject) -> Unit)? = null
@@ -180,8 +163,7 @@ class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
 }
 
 class CallViewModel(
-    private val context: Context,
-    var userId: Int
+    private val context: Context
 ) : ViewModel() {
 
     private val _room = MutableStateFlow<Room?>(null)

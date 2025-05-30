@@ -77,6 +77,7 @@ class FriendViewModel(private val tokenManager: TokenManager) : ViewModel() {
         api.sendFriendRequest(FriendRequestBody(toUserId)).enqueue(object : Callback<Void> {
             override fun onResponse(call: Call<Void>, response: Response<Void>) {
                 fetchRequests()
+                searchResults.clear()
             }
 
             override fun onFailure(call: Call<Void>, t: Throwable) {
@@ -123,6 +124,7 @@ class FriendViewModel(private val tokenManager: TokenManager) : ViewModel() {
         api.removeFriend(friendId).enqueue(object : Callback<Void> {
             override fun onResponse(call: Call<Void>, response: Response<Void>) {
                 fetchFriends()
+                searchResults.clear()
             }
 
             override fun onFailure(call: Call<Void>, t: Throwable) {}
