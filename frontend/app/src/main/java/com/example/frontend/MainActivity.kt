@@ -38,7 +38,7 @@ suspend fun fetchLiveKitToken(token: String?, userId: Int): String? {
     val client = OkHttpClient()
 
     val request = Request.Builder()
-        .url("http://192.168.0.130:8000/api/livekit-token/?room=$userId")
+        .url("http://${BuildConfig.SERVER_HOST}:8000/api/livekit-token/?room=$userId")
         .addHeader("Authorization", "Bearer $token")
         .build()
 
@@ -211,7 +211,7 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                         token?.let {
                             CallScreen(
                                 viewModel = viewModel,
-                                serverUrl = "ws://192.168.0.130:7880/",
+                                serverUrl = "ws://${BuildConfig.SERVER_HOST}:7880/",
                                 token = it,
                                 onDisconnect = {
                                     navController.navigate("friends") {

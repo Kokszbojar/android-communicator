@@ -19,7 +19,7 @@ object WebSocketManager {
         if (webSocket != null) return // zapobiegaj ponownemu łączeniu
 
         val request = Request.Builder()
-            .url("ws://192.168.0.130:8000/ws/chat/?token=$token")
+            .url("ws://${BuildConfig.SERVER_HOST}:8000/ws/chat/?token=$token")
             .build()
 
         webSocket = client.newWebSocket(request, object : WebSocketListener() {

@@ -72,7 +72,7 @@ class MqttNotificationManager(private val context: Context) {
     private val mqttClient: Mqtt3AsyncClient = MqttClient.builder()
         .useMqttVersion3()
         .identifier("android-client-${UUID.randomUUID()}")
-        .serverHost("192.168.0.130")
+        .serverHost(BuildConfig.SERVER_HOST)
         .serverPort(1883)
         .buildAsync()
 

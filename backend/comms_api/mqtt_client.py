@@ -1,7 +1,8 @@
 import json
 import paho.mqtt.client as mqtt
+from django.conf import settings
 
-MQTT_HOST = '192.168.0.130'
+MQTT_HOST = settings.HOST
 MQTT_PORT = 1883
 
 

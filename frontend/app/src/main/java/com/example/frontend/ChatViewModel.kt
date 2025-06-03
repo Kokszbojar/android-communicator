@@ -119,7 +119,7 @@ class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
         val token = this.token ?: return
         val client = OkHttpClient()
         val request = Request.Builder()
-            .url("http://192.168.0.130:8000/api/chat/history/?user_id=$userId&offset=$offset&limit=$limit")
+            .url("http://${BuildConfig.SERVER_HOST}:8000/api/chat/history/?user_id=$userId&offset=$offset&limit=$limit")
             .addHeader("Authorization", "Bearer $token")
             .build()
 
