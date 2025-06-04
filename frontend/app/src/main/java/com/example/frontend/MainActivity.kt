@@ -61,7 +61,27 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
+        WebSocketManager.initialized = false
         val tokenManager = TokenManager(this)
+        val rememberMe = tokenManager.getRemember()
+        if (rememberMe) {
+            val credentials = tokenManager.decryptCredentials()
+            AuthViewModel(true).login(
+                credentials.first,
+                credentials.second,
+                true
+            ) { success, access, refresh, userId ->
+                if (success && access != null && refresh != null && userId != null) {
+                    tokenManager.saveTokens(access, refresh)
+                    if (!isServiceRunning(this, MqttService::class.java)) {
+                        val intent = Intent(this, MqttService::class.java).apply {
+                            putExtra("user_id", userId)
+                        }
+                        this.startForegroundService(intent)
+                    }
+                }
+            }
+        }
 
         val navigateToChat = intent?.getBooleanExtra("navigate_to_chat", false) ?: false
         val notificationUserId = intent?.getIntExtra("userId", -1) ?: -1
@@ -71,45 +91,47 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
         setContent {
             val navController = rememberNavController()
             val alreadyNavigated = remember { mutableStateOf(false) }
-            val rememberMe = tokenManager.getRemember()
-            val context = LocalContext.current
-            LaunchedEffect(rememberMe) {
+            val context = this
+
+            LaunchedEffect(Unit) {
                 if (!rememberMe) {
                     navController.navigate("login") {
-                        popUpTo("login") { saveState=false }
+                        popUpTo(0) {
+                            inclusive=true
+                            saveState=false
+                        }
                     }
                 } else {
-                    val credentials = tokenManager.decryptCredentials()
-                    AuthViewModel(true).login(credentials.first, credentials.second, true) { success, access, refresh, userId ->
-                        if (success && access != null && refresh != null && userId != null) {
-                            WebSocketManager.initialize(access)
-                            tokenManager.saveTokens(access, refresh)
-                            startTokenRefreshLoop(tokenManager)
-                            if (!isServiceRunning(context, MqttService::class.java)) {
-                                val intent = Intent(context, MqttService::class.java).apply {
-                                    putExtra("user_id", userId)
+                    Handler(Looper.getMainLooper()).postDelayed({
+                        if (navigateToChat && notificationUserId != -1 && !alreadyNavigated.value) {
+                            navController.navigate("chat/$notificationUserId") {
+                                popUpTo(0) {
+                                    inclusive = true
+                                    saveState = false
                                 }
-                                context.startForegroundService(intent)
                             }
-                            if (navigateToChat && notificationUserId != -1 && !alreadyNavigated.value) {
-                                navController.navigate("chat/$notificationUserId") {
-                                    popUpTo("friends") { saveState=false }
+                            alreadyNavigated.value = true
+                        } else if (navigateToCall && notificationRoomId != -1 && !alreadyNavigated.value) {
+                            navController.navigate("call/$notificationRoomId") {
+                                popUpTo(0) {
+                                    inclusive = true
+                                    saveState = false
                                 }
-                                alreadyNavigated.value = true
-                            } else if (navigateToCall && notificationRoomId != -1 && !alreadyNavigated.value) {
-                                navController.navigate("call/$notificationRoomId") {
-                                    popUpTo("friends") { saveState=false }
-                                }
-                                alreadyNavigated.value = true
-                            } else {
-                                navController.navigate("friends") {
-                                    popUpTo("friends") { saveState=false }
+                            }
+                            alreadyNavigated.value = true
+                        } else {
+                            navController.navigate("friends") {
+                                popUpTo(0) {
+                                    inclusive = true
+                                    saveState = false
                                 }
                             }
                         }
-                    }
+                    }, 2000)
                 }
             }
+
+
 
             NavHost(navController = navController, startDestination = "loading") {
                 composable("loading") {
@@ -119,10 +141,8 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                     LoginScreen(
                         viewModel = AuthViewModel(rememberMe),
                         onLoginSuccess = { access, refresh, userId ->
-                            WebSocketManager.initialize(access)
                             tokenManager.saveTokens(access, refresh)
                             WindowCompat.setDecorFitsSystemWindows(window, false)
-                            startTokenRefreshLoop(tokenManager)
                             if (!isServiceRunning(context, MqttService::class.java)) {
                                 val intent = Intent(context, MqttService::class.java).apply {
                                     putExtra("user_id", userId)
@@ -130,11 +150,13 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                                 context.startForegroundService(intent)
                             }
                             navController.navigate("friends") {
-                                popUpTo("friends") { saveState=false }
+                                popUpTo(0) {
+                                    inclusive=true
+                                    saveState=false
+                                }
                             }
                         },
                         onRememberLogin = { (username, password) ->
-                            tokenManager.clearLoginData()
                             tokenManager.encryptAndSave(username, password, true)
                         },
                         onNavigateToRegister = {
@@ -147,12 +169,18 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                         viewModel = AuthViewModel(false),
                         onRegisterSuccess = {
                             navController.navigate("login") {
-                                popUpTo("login") { saveState=false }
+                                popUpTo(0) {
+                                    inclusive=true
+                                    saveState=false
+                                }
                             }
                         },
                         onNavigateToLogin = {
                             navController.navigate("login") {
-                                    popUpTo("login") { saveState=false }
+                                popUpTo(0) {
+                                    inclusive=true
+                                    saveState=false
+                                }
                             }
                         }
                     )
@@ -166,11 +194,15 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                             }
                         },
                         onLogout = {
+                            WebSocketManager.close()
                             tokenManager.clearLoginData()
                             val intent = Intent(context, MqttService::class.java)
                             context.stopService(intent)
                             navController.navigate("login") {
-                                popUpTo(0) { inclusive = true }
+                                popUpTo(0) {
+                                    inclusive=true
+                                    saveState=false
+                                }
                             }
                         }
                     )
@@ -204,7 +236,10 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                             token = fetchLiveKitToken(tokenManager.getToken(), userId)
                             if (token == null) {
                                 navController.navigate("login") {
-                                    popUpTo("login") { saveState=false }
+                                    popUpTo(0) {
+                                        inclusive=true
+                                        saveState=false
+                                    }
                                 }
                             }
                         }
@@ -215,7 +250,10 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
                                 token = it,
                                 onDisconnect = {
                                     navController.navigate("friends") {
-                                        popUpTo("friends") { saveState=false }
+                                        popUpTo(0) {
+                                            inclusive=true
+                                            saveState=false
+                                        }
                                     }
                                 }
                             )
@@ -292,19 +330,21 @@ class MainActivity : ComponentActivity(), LifecycleEventObserver {
     override fun onStateChanged(source: LifecycleOwner, event: Lifecycle.Event) {
         when (event) {
             Lifecycle.Event.ON_START -> {
-                // App wróciła na pierwszy plan – odśwież połączenie
                 val token = TokenManager(this).getToken()
                 if (token != null) {
-                    WebSocketManager.initialize(token)
+                    WebSocketManager.initialize(token, true)
+                }
+            }
+            Lifecycle.Event.ON_RESUME -> {
+                val token = TokenManager(this).getToken()
+                if (token != null) {
+                    WebSocketManager.initialize(token, true)
                 }
             }
 
-            Lifecycle.Event.ON_STOP -> {
-                // App poszła w tło – rozłącz WS, jeśli chcesz
+            else -> {
                 WebSocketManager.close()
             }
-
-            else -> Unit
         }
     }
 }

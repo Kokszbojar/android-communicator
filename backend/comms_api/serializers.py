@@ -65,11 +65,12 @@ class FriendRequestSerializer(serializers.ModelSerializer):
 
 class UserSerializer(serializers.ModelSerializer):
     lastMessage = serializers.SerializerMethodField()
+    hasNewMessage = serializers.SerializerMethodField()
     timestamp = serializers.SerializerMethodField()
 
     class Meta:
         model = User
-        fields = ["id", "username", "lastMessage", "timestamp"]
+        fields = ["id", "username", "lastMessage", "hasNewMessage", "timestamp"]
 
     def get_lastMessage(self, obj):
         user = self.context.get("request").user
@@ -78,6 +79,14 @@ class UserSerializer(serializers.ModelSerializer):
         ).order_by("-timestamp").first()
 
         return message.content if message else None
+    
+    def get_hasNewMessage(self, obj):
+        user = self.context.get("request").user
+        message = Message.objects.filter(
+            Q(sender=user, recipient=obj) | Q(sender=obj, recipient=user)
+        ).order_by("-timestamp").first()
+
+        return not message.is_read
 
     def get_timestamp(self, obj):
         user = self.context.get("request").user

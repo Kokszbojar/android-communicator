@@ -105,10 +105,10 @@ fun LoginScreen(
                 onClick = {
                     viewModel.login(username, password, rememberMe) { success, access, refresh, userId ->
                         if (success && access != null && refresh != null && userId != null) {
-                            onLoginSuccess(access, refresh, userId)
                             if (rememberMe) {
                                 onRememberLogin(Pair(username, password))
                             }
+                            onLoginSuccess(access, refresh, userId)
                         } else {
                             error = "Nieprawidłowe dane"
                         }

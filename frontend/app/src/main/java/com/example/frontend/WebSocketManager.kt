@@ -11,12 +11,18 @@ object WebSocketManager {
     private var webSocket: WebSocket? = null
     private var client = OkHttpClient()
     private var token: String? = null
+    var initialized: Boolean = false
 
     private val listeners = mutableSetOf<(JSONObject) -> Unit>()
 
-    fun initialize(token: String) {
+    fun initialize(token: String, reconnect: Boolean) {
         this.token = token
         if (webSocket != null) return // zapobiegaj ponownemu łączeniu
+        if (!initialized and reconnect) {
+            return
+        } else {
+            initialized = true
+        }
 
         val request = Request.Builder()
             .url("ws://${BuildConfig.SERVER_HOST}:8000/ws/chat/?token=$token")

@@ -10,6 +10,7 @@ import javax.crypto.KeyGenerator
 import javax.crypto.SecretKey
 import javax.crypto.spec.GCMParameterSpec
 import android.util.Base64
+import android.util.Log
 
 class TokenManager(context: Context) {
     private val prefs: SharedPreferences =
@@ -86,6 +87,7 @@ class TokenManager(context: Context) {
     }
 
     fun clearLoginData() {
+        prefs.edit().clear().apply()
         loginPrefs.edit().clear().apply()
     }
 }

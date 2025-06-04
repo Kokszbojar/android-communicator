@@ -66,11 +66,12 @@ class ChatHistoryView(APIView):
         if not other_user_id:
             return Response({"error": "user_id is required"}, status=400)
 
-        messages = Message.objects.filter(
+        all_messages = Message.objects.filter(
             Q(sender=user, recipient__id=other_user_id) |
             Q(sender__id=other_user_id, recipient=user)
-        ).order_by("-timestamp")[offset: offset + limit]
-        
+        ).order_by("-timestamp")
+        all_messages.update(is_read=True)
+        messages = all_messages[offset: offset + limit]
         serialized = MessageSerializer(messages, many=True, context={"request": request})
         return Response({"data": serialized.data, "friendName": User.objects.get(id=other_user_id).username})
 
@@ -124,24 +125,24 @@ class RespondToFriendRequestView(APIView):
         try:
             fr = FriendRequest.objects.get(pk=pk)
         except FriendRequest.DoesNotExist:
-            return Response({"detail": "Nie znaleziono zaproszenia."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
         fr.status = FriendRequest.Status.ACCEPTED
         fr.save()
-        return Response({"detail": "Zaproszenie zaakceptowane."})
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
     def delete(self, request, pk):
         try:
             fr = FriendRequest.objects.get(pk=pk)
         except FriendRequest.DoesNotExist:
-            return Response({"detail": "Nie znaleziono zaproszenia."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
         deleted_count, _ = fr.delete()
 
         if deleted_count:
-            return Response({"message": "Zaproszenie usunięte."}, status=status.HTTP_204_NO_CONTENT)
+            return Response(status=status.HTTP_204_NO_CONTENT)
         else:
-            return Response({"error": "Zaproszenie do usunięcia nie istnieje."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
 
 class FriendRequestsView(APIView):
@@ -185,7 +186,7 @@ class RemoveFriendView(APIView):
         try:
             friend = User.objects.get(id=user_id)
         except User.DoesNotExist:
-            return Response({"error": "User not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
         deleted_count, _ = FriendRequest.objects.filter(
             status=FriendRequest.Status.ACCEPTED
@@ -195,9 +196,9 @@ class RemoveFriendView(APIView):
         ).delete()
 
         if deleted_count:
-            return Response({"message": "Friend removed."}, status=status.HTTP_204_NO_CONTENT)
+            return Response(status=status.HTTP_204_NO_CONTENT)
         else:
-            return Response({"error": "Friendship not found."}, status=status.HTTP_404_NOT_FOUND)
+            return Response(status=status.HTTP_404_NOT_FOUND)
 
 
 class UserSearchView(APIView):

@@ -6,6 +6,7 @@ import android.os.Looper
 import android.util.Base64
 import android.util.Log
 import androidx.compose.runtime.*
+import androidx.core.net.toUri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import io.livekit.android.LiveKit
@@ -91,7 +92,7 @@ class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
             put("file", base64)
             put("file_type", fileType)
         }
-
+        val uri = file.toUri()
         WebSocketManager.send(json)
         messages.add(
             Message(
@@ -99,7 +100,8 @@ class ChatViewModel(var userId: Int, private val token: String?) : ViewModel() {
                 fromUser = "",
                 timestamp = "",
                 fileUrl = "",
-                fileType = fileType
+                fileType = fileType,
+                localFileUri = uri
             )
         )
     }

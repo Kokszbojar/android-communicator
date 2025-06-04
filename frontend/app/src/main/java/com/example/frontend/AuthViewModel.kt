@@ -1,6 +1,8 @@
 package com.example.frontend
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import retrofit2.Call
@@ -30,6 +32,12 @@ class AuthViewModel(var rememberMe: Boolean) : ViewModel() {
             override fun onResponse(call: Call<AuthResponse>, response: Response<AuthResponse>) {
                 if (response.isSuccessful) {
                     onResult(true, response.body()?.access, response.body()?.refresh, response.body()?.userId)
+                    val token = response.body()?.access
+                    if (token != null) {
+                        Handler(Looper.getMainLooper()).postDelayed({
+                            WebSocketManager.initialize(token, false)
+                        }, 500)
+                    }
                 } else {
                     onResult(false, null, null, null)
                 }

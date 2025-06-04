@@ -270,6 +270,20 @@ fun ChatBubble(friendName: String, context: Context, message: Message) {
                     )
                 }
             }
+            message.localFileUri?.let { uri ->
+                when (message.fileType) {
+                    "image" -> AsyncImage(
+                        model = uri,
+                        contentDescription = "Obraz",
+                        modifier = Modifier
+                            .fillMaxWidth()
+                    )
+                    "audio" -> Text(
+                        text = "Wysłana wiadomość audio",
+                        color = Color.Cyan
+                    )
+                }
+            }
         }
     }
 }
@@ -279,5 +293,6 @@ data class Message(
     val fromUser: String,
     val timestamp: String,
     val fileUrl: String? = null,
-    val fileType: String? = null
+    val fileType: String? = null,
+    val localFileUri: Uri? = null
 )
